@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Quarkus OIDC Example</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .button {
+            display: inline-block;
+            padding: 10px 15px;
+            margin: 10px 0;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .button:hover { background-color: #0056b3; }
+        .logout-button { background-color: #dc3545; }
+        .logout-button:hover { background-color: #c82333; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Welcome to the Quarkus OIDC Application!</h1>
+
+    {#if securityIdentity.isAnonymous}
+        <p>You are not currently logged in.</p>
+        <p>
+            To access protected resources, you need to log in.
+            Accessing a secured page will automatically redirect you to the OIDC provider for login.
+        </p>
+        <p><a href="/users/me" class="button">Login / View Secured Profile Page</a></p>
+    {#else}
+        <p>Hello, <strong>{securityIdentity.principal.name}</strong>!</p>
+        <p>Your roles: {securityIdentity.roles}</p>
+        <p><a href="/users/me" class="button">View Secured Profile Page</a></p>
+        <p><a href="/logout" class="button logout-button">Logout</a></p>
+    {/if}
+</div>
+</body>
+</html>

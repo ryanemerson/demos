@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Secured Page</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #e9ecef; color: #333; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .button {
+            display: inline-block;
+            padding: 10px 15px;
+            margin: 10px 0;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .button:hover { background-color: #c82333; }
+        .home-button { background-color: #28a745; }
+        .home-button:hover { background-color: #218838; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Secured Profile Page</h1>
+    {#if securityIdentity.isAnonymous}
+        <p>Error: You should be authenticated to see this page.</p>
+    {#else}
+        <p>Welcome, <strong>{securityIdentity.principal.name}</strong>!</p>
+        <p>This page is only accessible to authenticated users.</p>
+        <p>Tenant-id: {securityIdentity.getAttributes.get("tenant-id")}</p>
+        <p>Expiration Time: {securityIdentity.getAttributes.get("quarkus.identity.expire-time")}</p>
+        <p>Your roles: {securityIdentity.getRoles}</p>
+        <p><a href="/logout" class="button">Logout</a></p>
+    {/if}
+    <p><a href="/" class="button home-button">Back to Home</a></p>
+</div>
+</body>
+</html>

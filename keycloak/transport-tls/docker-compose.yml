@@ -13,7 +13,7 @@ services:
     restart: always
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.2.4
+    image: quay.io/keycloak/keycloak:26.2
     deploy:
       replicas: 2
     environment:

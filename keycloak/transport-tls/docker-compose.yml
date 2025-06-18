@@ -36,6 +36,8 @@ services:
       - --http-enabled=true
       - --hostname-strict=false
 
+      # - --cache-embedded-mtls-rotation-interval-days=10
+
       # - --cache-embedded-mtls-enabled=false
 
       # - --cache-embedded-mtls-key-store-file=/opt/keystore.p12

@@ -65,11 +65,21 @@ TOKEN=$(kubectl create token default --audience="http://localhost:8080/realms/ku
 2. Client credential grant
 
 ```
-curl -s -X POST \
+ACCESS_TOKEN=$(curl -s -X POST \
   -d grant_type=client_credentials \
   -d client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer \
   -d client_assertion="$TOKEN" \
-  http://localhost:8080/realms/kubernetes/protocol/openid-connect/token
+  http://localhost:8080/realms/kubernetes/protocol/openid-connect/token | jq -r .access_token)
+```
+
+3. Token introspection
+
+```
+curl -s -X POST \
+  -d token=$ACCESS_TOKEN \
+  -d client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer \
+  -d client_assertion="$TOKEN" \
+  http://localhost:8080/realms/kubernetes/protocol/openid-connect/token/introspect
 ```
 
 # Retrieve JWKS within pod

@@ -39,7 +39,7 @@ EOF
 ```
 
 Update the ip of the `jwksUrl` to that of your Kubernetes cluster, e.g.
-`minikube ip`.
+`minikube ip` or `oc whoami --show-server`.
 
 3. Create client:
 
@@ -59,7 +59,7 @@ EOF
 # Try it out
 1. Retrieve Kubernetes Service Account Token
 ```
-TOKEN=$(kubectl create token default --audience="http://localhost:8080/realms/kubernetes)
+TOKEN=$(kubectl create token default --audience="http://localhost:8080/realms/kubernetes")
 ```
 
 2. Client credential grant

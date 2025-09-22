@@ -1,0 +1,64 @@
+# The API version for Deployments, a core part of the 'apps' API group.
+apiVersion: apps/v1
+# Specifies that this resource is a Deployment.
+kind: Deployment
+metadata:
+  # The name of the Deployment. This will be the prefix for the Pod names it creates.
+  name: keycloak-deployment
+  # Labels to help organize and select this Deployment.
+  labels:
+    app: keycloak
+spec:
+  # The number of desired Pod replicas. The Deployment will ensure this many Pods are running.
+  replicas: 1
+  # The selector determines which Pods this Deployment manages.
+  # The labels here MUST match the labels in the Pod template (`template.metadata.labels`).
+  selector:
+    matchLabels:
+      app: keycloak
+  # The template for the Pods that this Deployment will create.
+  # This section is essentially your original Pod definition, nested under 'template'.
+  template:
+    metadata:
+      # Labels applied to each Pod created by this Deployment.
+      # These must match the `spec.selector.matchLabels` above.
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: 192.168.49.2:5000/keycloak:0.0.1-fa7e74
+          # The command to start Keycloak in development mode.
+          args: ["start-dev", "--features=kubernetes-service-accounts,client-auth-federated", "--spi-connections-http-client--default--disable-trust-manager=true"]
+          # Environment variables required to configure Keycloak on startup.
+          env:
+            # Sets the initial admin username.
+            - name: KEYCLOAK_ADMIN
+              value: "admin"
+            # Sets the initial admin password.
+            # WARNING: For production, use Kubernetes Secrets instead of plaintext.
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              value: "admin"
+            # Enables the health check endpoints.
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: DEBUG
+              value: "true"
+            - name: KC_DEBUG_SUSPEND
+              value: "n"
+            - name: KC_DEBUG_ADDRESS
+              value: "*"
+          # Ports that the container exposes.
+          ports:
+            - name: http
+              containerPort: 8080
+          # Readiness probe to check if the container is ready to handle traffic.
+          # Kubernetes will not send traffic to the Pod until this probe succeeds.
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5

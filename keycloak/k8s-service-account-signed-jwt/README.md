@@ -23,12 +23,11 @@ kubectl patch clusterrolebinding system:service-account-issuer-discovery --type=
 ./kcadm.sh create identity-provider/instances -r kubernetes     -f - << EOF
 {
   "alias": "kubernetes",
-  "providerId": "oidc",
+  "providerId": "kubernetes",
   "hideOnLogin": true,
   "config": {
     "validateSignature": "true",
     "issuer": "https://kubernetes.default.svc.cluster.local",
-    "jwksUrl": "https://192.168.49.2:8443/openid/v1/jwks",
     "useJwksUrl": "true",
     "supportsClientAssertions": "true",
     "supportsClientAssertionReuse": "true",
@@ -79,7 +78,7 @@ curl -s -X POST \
   -d token=$ACCESS_TOKEN \
   -d client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer \
   -d client_assertion="$TOKEN" \
-  http://localhost:8080/realms/kubernetes/protocol/openid-connect/token/introspect
+  http://localhost:8080/realms/kubernetes/protocol/openid-connect/token/introspect | jq .
 ```
 
 # Retrieve JWKS within pod

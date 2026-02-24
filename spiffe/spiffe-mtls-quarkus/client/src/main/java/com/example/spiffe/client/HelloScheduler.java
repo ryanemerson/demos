@@ -3,6 +3,7 @@ package com.example.spiffe.client;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
@@ -12,6 +13,7 @@ import javax.net.ssl.SSLParameters;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
+
 import java.io.FileInputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -35,14 +37,14 @@ import java.util.Random;
 /**
  * Calls the hello-server every second with a random name using the JDK
  * java.net.http.HttpClient, which accepts a custom SSLContext directly.
- *
+ * <p>
  * Two-layer hostname bypass for SPIFFE URI SANs:
- *   1. SSLParameters.setEndpointIdentificationAlgorithm("") - the JDK HTTP client
- *      only overrides this when it is null; setting "" prevents "HTTPS" being
- *      injected, so X509TrustManagerImpl.checkIdentity is never reached.
- *   2. SpiffeNoHostnameTrustManager - intercepts checkServerTrusted and clears
- *      the algorithm on the SSLEngine as a belt-and-suspenders safety net.
- *
+ * 1. SSLParameters.setEndpointIdentificationAlgorithm("") - the JDK HTTP client
+ * only overrides this when it is null; setting "" prevents "HTTPS" being
+ * injected, so X509TrustManagerImpl.checkIdentity is never reached.
+ * 2. SpiffeNoHostnameTrustManager - intercepts checkServerTrusted and clears
+ * the algorithm on the SSLEngine as a belt-and-suspenders safety net.
+ * <p>
  * CA chain validation is still enforced via the SPIFFE trust bundle.
  */
 @ApplicationScoped
@@ -51,8 +53,8 @@ public class HelloScheduler {
     private static final Logger log = Logger.getLogger(HelloScheduler.class);
 
     private static final String[] NAMES = {
-            "Alice", "Bob", "Charlie", "Diana", "Eve",
-            "Frank", "Grace", "Hank", "Iris", "Jack"
+          "Alice", "Bob", "Charlie", "Diana", "Eve",
+          "Frank", "Grace", "Hank", "Iris", "Jack"
     };
 
     private final Random random = new Random();
@@ -79,9 +81,9 @@ public class HelloScheduler {
         String name = NAMES[random.nextInt(NAMES.length)];
         try {
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(serverUrl + "/hello/" + name))
-                    .GET()
-                    .build();
+                  .uri(URI.create(serverUrl + "/hello/" + name))
+                  .GET()
+                  .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             log.infof("Response: %s", response.body());
         } catch (Exception e) {
@@ -99,9 +101,9 @@ public class HelloScheduler {
             sslParams.setEndpointIdentificationAlgorithm("");
 
             httpClient = HttpClient.newBuilder()
-                    .sslContext(sslContext)
-                    .sslParameters(sslParams)
-                    .build();
+                  .sslContext(sslContext)
+                  .sslParameters(sslParams)
+                  .build();
             log.info("SPIFFE HTTP client initialised");
         } catch (Exception e) {
             log.debugf("SPIFFE certs not yet available (%s), will retry", e.getMessage());
@@ -128,18 +130,18 @@ public class HelloScheduler {
             }
         }
         TrustManagerFactory tmf =
-                TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+              TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         tmf.init(trustStore);
         TrustManager[] wrappedTMs = Arrays.stream(tmf.getTrustManagers())
-                .map(tm -> tm instanceof X509ExtendedTrustManager x509
-                        ? new SpiffeNoHostnameTrustManager(x509)
-                        : tm)
-                .toArray(TrustManager[]::new);
+              .map(tm -> tm instanceof X509ExtendedTrustManager x509
+                    ? new SpiffeNoHostnameTrustManager(x509)
+                    : tm)
+              .toArray(TrustManager[]::new);
 
         // --- Key store: SVID private key + certificate chain ---
         String keyPem = Files.readString(dir.resolve("svid.0.key"));
         byte[] keyBytes = Base64.getDecoder().decode(
-                keyPem.replaceAll("-----[^-]+-----", "").replaceAll("\\s", ""));
+              keyPem.replaceAll("-----[^-]+-----", "").replaceAll("\\s", ""));
         PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
         PrivateKey privateKey;
         try {
@@ -156,10 +158,10 @@ public class HelloScheduler {
         KeyStore keyStore = KeyStore.getInstance("PKCS12");
         keyStore.load(null, null);
         keyStore.setKeyEntry("spiffe-svid", privateKey, new char[0],
-                certChain.stream().map(c -> (X509Certificate) c).toArray(X509Certificate[]::new));
+              certChain.stream().map(c -> (X509Certificate) c).toArray(X509Certificate[]::new));
 
         KeyManagerFactory kmf =
-                KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+              KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         kmf.init(keyStore, new char[0]);
 
         SSLContext sslContext = SSLContext.getInstance("TLS");

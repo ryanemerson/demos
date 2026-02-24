@@ -40,20 +40,18 @@ spec:
           value: "unix:/run/spire/sockets/agent.sock"
         - name: SPIFFE_IDS
           value: "spiffe://demo.example.com/hello-server"
+        - name: SPIFFE_TLS
+          value: "mtls"
         - name: JAVA_OPTS_APPEND
-          value: "-Djavax.net.debug=ssl:handshake"
+          value: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -Djavax.net.debug=ssl:handshake"
         volumeMounts:
         - name: spire-agent-socket
           mountPath: /run/spire/sockets
-        - name: spiffe-certs
-          mountPath: /opt/spiffe-certs
       volumes:
       - name: spire-agent-socket
         hostPath:
           path: /run/spire/socket
           type: DirectoryOrCreate
-      - name: spiffe-certs
-        emptyDir: {}
 EOF
 
 kubectl rollout status deployment/hello-client -n client

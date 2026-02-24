@@ -320,7 +320,11 @@ kubectl exec -n spire statefulset/spire-server -c spire-server -- \
   -spiffeID spiffe://demo.example.com/hello-server \
   -parentID spiffe://demo.example.com/ns/spire/sa/spire-agent \
   -selector k8s:ns:server \
-  -selector k8s:sa:hello-server
+  -selector k8s:sa:hello-server \
+  -dns hello-server.server.svc.cluster.local
+# Defining a DNS hostname with -dns allows legacy clients to still connect to the server without hostname verification failing
+# Legacy clients still need to ensure that they receive updated certificates for the server when keys are rotated
+# The spiffe-helper project can be used to automatically retrieve updated certificates from the workload API
 
 # hello-client workload.
 kubectl exec -n spire statefulset/spire-server -c spire-server -- \

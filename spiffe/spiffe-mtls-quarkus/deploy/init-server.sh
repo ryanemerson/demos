@@ -99,7 +99,7 @@ spec:
         - name: SPIRE_SOCKET_PATH
           value: "unix:/run/spire/sockets/agent.sock"
         - name: JAVA_OPTS_APPEND
-          value: "-Djavax.net.debug=ssl:handshake"
+          value: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -Djavax.net.debug=ssl:handshake"
         volumeMounts:
         - name: spire-agent-socket
           mountPath: /run/spire/sockets

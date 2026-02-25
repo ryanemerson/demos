@@ -21,7 +21,7 @@ echo "------------------------------------------"
 echo "Create Kubernetes Identity Provider config"
 echo "------------------------------------------"
 
-$KCADMIN create identity-provider/instances -r spiffe -s alias=spiffe -s providerId=spiffe -s config='{"trustDomain": "spiffe://demo.example.com", "bundleEndpoint": "https://localhost:8543"}'
+$KCADMIN create identity-provider/instances -r spiffe -s alias=spiffe -s providerId=spiffe -s config='{"trustDomain": "spiffe://demo.example.com", "bundleEndpoint": "https://spire-server.spire.svc.cluster.local:443"}'
 
 echo "------------------------------------------------------------"
 echo "Create client authenticating with SPIFFE"

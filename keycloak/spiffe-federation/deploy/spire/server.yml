@@ -1,0 +1,206 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spire-server
+  namespace: spire
+---
+# SPIRE Servers validate agent tokens via the Kubernetes TokenReview API and
+# query pod/node metadata to verify k8s_psat attestation claims.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: spire-server-cluster-role
+rules:
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: spire-server-cluster-role-binding
+subjects:
+  - kind: ServiceAccount
+    name: spire-server
+    namespace: spire
+roleRef:
+  kind: ClusterRole
+  name: spire-server-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-server-config
+  namespace: spire
+data:
+  server.conf: |
+    server {
+      bind_address = "0.0.0.0"
+      bind_port = "8081"
+      socket_path = "/tmp/spire-server/private/api.sock"
+      trust_domain = "demo.example.com"
+      data_dir = "/run/spire/data"
+      log_level = "INFO"
+      ca_ttl = "12h"
+      default_x509_svid_ttl = "1h"
+      jwt_issuer = "spire-server.spire.svc.cluster.local"
+      ca_key_type = "rsa-2048"
+      ca_subject = {
+        country = ["US"],
+        organization = ["SPIFFE"],
+        common_name = "",
+      }
+    }
+    plugins {
+      DataStore "sql" {
+        plugin_data {
+          database_type = "sqlite3"
+          connection_string = "/run/spire/data/datastore.sqlite3"
+        }
+      }
+      NodeAttestor "k8s_psat" {
+        plugin_data {
+          clusters = {
+            "minikube" = {
+              service_account_allow_list = ["spire:spire-agent"]
+              audience = ["spire-server"]
+            }
+          }
+        }
+      }
+      KeyManager "disk" {
+        plugin_data {
+          keys_path = "/run/spire/data/keys.json"
+        }
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oidc-discovery-provider
+  namespace: spire
+data:
+  oidc-discovery-provider.conf: |
+    log_level = "INFO"
+    # Localhost to allow debugging with Kubectl port-forward
+    domains = ["spire-server.spire.svc.cluster.local","localhost"]
+    serving_cert_file {
+      addr = ":443"
+      cert_file_path = "/etc/tls-certs/tls.crt"
+      key_file_path = "/etc/tls-certs/tls.key"
+    }
+    server_api {
+      address = "unix:///tmp/spire-server/private/api.sock"
+    }
+    # TODO
+    health_checks {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spire-server
+  namespace: spire
+spec:
+  selector:
+    app: spire-server
+  ports:
+  - name: grpc
+    port: 8081
+    targetPort: 8081
+  - name: https
+    port: 443
+    targetPort: 443
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spire-server
+  namespace: spire
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spire-server
+  serviceName: spire-server
+  template:
+    metadata:
+      labels:
+        app: spire-server
+    spec:
+      serviceAccountName: spire-server
+      containers:
+      - name: spire-server
+        image: ${SPIRE_SERVER_IMAGE}
+        args: ["-config", "/run/spire/config/server.conf"]
+        ports:
+        - containerPort: 8081
+        volumeMounts:
+        - name: spire-server-config
+          mountPath: /run/spire/config
+          readOnly: true
+        - name: spire-data
+          mountPath: /run/spire/data
+        - name: spire-server-socket
+          mountPath: /tmp/spire-server/private
+          readOnly: false
+        readinessProbe:
+          exec:
+            command:
+            - /opt/spire/bin/spire-server
+            - healthcheck
+            - -socketPath
+            - /tmp/spire-server/private/api.sock
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      - name: spire-oidc
+        image: ${SPIRE_OIDC_DISCOVERY_IMAGE}
+        args:
+          - -config
+          - /run/spire/oidc/config/oidc-discovery-provider.conf
+        ports:
+          - containerPort: 443
+        volumeMounts:
+          - name: spire-server-socket
+            mountPath: /tmp/spire-server/private
+            readOnly: true
+          - name: spire-oidc-config
+            mountPath: /run/spire/oidc/config/
+            readOnly: true
+          - name: oidc-discovery-certs
+            mountPath: /etc/tls-certs
+          - name: spire-agent-socket
+            mountPath: /run/spire/sockets
+          - name: spire-data
+            mountPath: /run/spire/data
+            readOnly: false
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8008
+          failureThreshold: 5
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+      volumes:
+      - name: spire-server-config
+        configMap:
+          name: spire-server-config
+      - name: spire-oidc-config
+        configMap:
+          name: oidc-discovery-provider
+      - name: oidc-discovery-certs
+        secret:
+          secretName: oidc-discovery-certs
+      - name: spire-agent-socket
+        hostPath:
+          path: /run/spire/socket
+          type: DirectoryOrCreate
+      - name: spire-data
+        emptyDir: {}
+      - name: spire-server-socket
+        emptyDir: {}

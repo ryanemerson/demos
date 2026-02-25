@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keycloak
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app: keycloak
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: keycloak
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: keycloak
+  name: keycloak-discovery
+  namespace: keycloak
+spec:
+  selector:
+    app: keycloak
+  clusterIP: None
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app: keycloak
+spec:
+  serviceName: keycloak-discovery
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      initContainers:
+        # Wait for the SPIRE Agent socket before attempting to fetch an SVID.
+        # busybox is used here because the spire-agent image is distroless (no shell).
+        - name: wait-for-spire
+          image: busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - |
+              until [ -S /run/spire/sockets/agent.sock ]; do
+                echo "Waiting for SPIRE agent socket..."
+                sleep 2
+              done
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets
+        # Fetch the X.509 SVID directly using the spire-agent binary (no shell needed).
+        # Writes: svid.0.pem (cert chain), svid.0.key (private key), bundle.0.pem (trust bundle).
+        - name: spiffe-init
+          image: ghcr.io/spiffe/spire-agent:1.9.4
+          command:
+            - /opt/spire/bin/spire-agent
+            - api
+            - fetch
+            - x509
+            - -socketPath
+            - /run/spire/sockets/agent.sock
+            - -write
+            - /opt/spiffe-certs/
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets
+            - name: spiffe-certs
+              mountPath: /opt/spiffe-certs
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:nightly
+          args: ["start-dev"]
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: "admin"
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              value: "admin"
+            - name: KC_PROXY_HEADERS
+              value: "xforwarded"
+            - name: KC_FEATURES
+              value: "client-auth-federated,spiffe"
+            - name: KC_TRUSTSTORE_PATHS
+              value: "/opt/spiffe-certs/bundle.0.pem"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8080
+          volumeMounts:
+            - name: spiffe-certs
+              mountPath: /opt/spiffe-certs
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/socket
+            type: DirectoryOrCreate
+        - name: spiffe-certs
+          emptyDir: {}

@@ -12,9 +12,9 @@ metadata:
     app: keycloak
 spec:
   ports:
-    - name: http
-      port: 8080
-      targetPort: 8080
+    - name: https
+      port: 8443
+      targetPort: 8443
   selector:
     app: keycloak
 ---
@@ -49,8 +49,6 @@ data:
     svid_file_name = "svid.pem"
     svid_key_file_name = "svid_key.pem"
     svid_bundle_file_name = "bundle.pem"
-
-    jwt_svids = [{jwt_audience = "http://localhost:8080/realms/spiffe", jwt_svid_file_name = "jwt.token"}]
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -71,14 +69,15 @@ spec:
         app: keycloak
     spec:
       initContainers:
-        # Fetch the X.509 SVID and trust bundle via the SPIFFE Workload API.
-        # spiffe-helper retries until the agent socket is available then exits once certs are written.
+        # Sidecar to continuously fetch and update the X.509 SVID and trust bundle via the Workload API.
         # Writes: svid.pem (cert chain), svid_key.pem (private key), bundle.pem (trust bundle).
         - name: spiffe-helper
           image: ghcr.io/spiffe/spiffe-helper:0.11.0
           args: ["-config", "/opt/spiffe-helper/helper.conf"]
           # Continue to execute as a sidecar
           restartPolicy: Always
+          securityContext:
+            runAsUser: 1000
           readinessProbe:
             httpGet:
               path: /ready
@@ -93,7 +92,7 @@ spec:
       containers:
         - name: keycloak
           image: quay.io/keycloak/keycloak:nightly
-          args: ["start-dev"]
+          args: ["start"]
           env:
             - name: KC_BOOTSTRAP_ADMIN_USERNAME
               value: "admin"
@@ -103,6 +102,16 @@ spec:
               value: "xforwarded"
             - name: KC_FEATURES
               value: "client-auth-federated,spiffe"
+            - name: KC_HOSTNAME
+              value: "keycloak.keycloak.svc.cluster.local"
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_DB
+              value: "dev-file"
+            - name: KC_HTTPS_CERTIFICATE_FILE
+              value: "/opt/spiffe-certs/svid.pem"
+            - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+              value: "/opt/spiffe-certs/svid_key.pem"
             - name: KC_TRUSTSTORE_PATHS
               value: "/opt/spiffe-certs/bundle.pem"
             # SPIRE default expiration
@@ -111,13 +120,18 @@ spec:
             # JWT-SVIDs 5m
             - name: KC_HTTPS_CERTIFICATES_RELOAD_PERIOD
               value: "25m"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
           ports:
-            - name: http
-              containerPort: 8080
+            - name: https
+              containerPort: 8443
+            - name: management
+              containerPort: 9000
           readinessProbe:
             httpGet:
-              path: /realms/master
-              port: 8080
+              path: /health/ready
+              port: 9000
+              scheme: HTTPS
           volumeMounts:
             - name: spiffe-certs
               mountPath: /opt/spiffe-certs

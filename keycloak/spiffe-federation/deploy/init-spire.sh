@@ -52,7 +52,8 @@ kubectl exec -n spire statefulset/spire-server -c spire-server -- \
   -spiffeID spiffe://demo.example.com/keycloak \
   -parentID spiffe://demo.example.com/ns/spire/sa/spire-agent \
   -selector k8s:ns:keycloak \
-  -selector k8s:sa:default
+  -selector k8s:sa:default \
+  -dns keycloak.keycloak.svc.cluster.local # Allows kcadm.sh hostname verification to work as expected
 
 # hello-server workload.
 kubectl exec -n spire statefulset/spire-server -c spire-server -- \

@@ -1,15 +1,26 @@
 #!/bin/bash
-#set -e
+set -e
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-NAMESPACE=keycloak
 kubectl apply -f "${SCRIPT_DIR}/keycloak/keycloak.yml"
 kubectl rollout status statefulset/keycloak -n keycloak
 
-KC_POD=$(kubectl -n ${NAMESPACE} get pods | grep keycloak | cut -f 1 -d ' ')
-KCADMIN="kubectl -n ${NAMESPACE} exec $KC_POD -- /opt/keycloak/bin/kcadm.sh"
+KCEXEC="kubectl -n keycloak exec statefulset/keycloak -c keycloak --"
+KCADMIN="$KCEXEC /opt/keycloak/bin/kcadm.sh"
 
-$KCADMIN config credentials --server http://localhost:8080 --realm master --user admin --password admin
+# Build a JKS truststore from the SPIFFE CA bundle so that kcadm.sh can verify
+# Keycloak's TLS certificate (a SPIFFE X.509-SVID signed by the SPIRE CA).
+$KCEXEC rm -f /tmp/truststore.jks
+$KCEXEC keytool -importcert -noprompt -alias spiffe-ca \
+  -file /opt/spiffe-certs/bundle.pem \
+  -keystore /tmp/truststore.jks \
+  -storepass changeit
+
+$KCADMIN config truststore --trustpass changeit /tmp/truststore.jks
+
+$KCADMIN config credentials \
+  --server https://keycloak.keycloak.svc.cluster.local:8443 \
+  --realm master --user admin --password admin
 
 echo "----------------------------"
 echo "Create demo kubernetes realm"
@@ -27,6 +38,6 @@ echo "------------------------------------------------------------"
 echo "Create client authenticating with SPIFFE"
 echo "------------------------------------------------------------"
 
-$KCADMIN  create clients -r spiffe -s clientId=myclient -s serviceAccountsEnabled=true -s clientAuthenticatorType=federated-jwt -s attributes='{ "jwt.credential.issuer": "spiffe", "jwt.credential.sub": " spiffe://demo.example.com/hello-client" }'
+$KCADMIN  create clients -r spiffe -s clientId=hello-client -s serviceAccountsEnabled=true -s clientAuthenticatorType=federated-jwt -s attributes='{ "jwt.credential.issuer": "spiffe", "jwt.credential.sub": " spiffe://demo.example.com/hello-client" }'
 
 echo "Keycloak setup complete."

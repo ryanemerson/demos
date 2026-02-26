@@ -44,3 +44,4 @@ nb-configuration.xml
 
 node*.log
 **/*.token
+**/*.pem

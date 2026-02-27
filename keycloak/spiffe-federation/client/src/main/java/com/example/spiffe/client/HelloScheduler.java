@@ -140,10 +140,11 @@ public class HelloScheduler {
 
     @Scheduled(every = "60s", delayed = "5s")
     void callServer() {
+        String keycloakHost = "https://keycloak.keycloak.svc.cluster.local:8443";
         // Fetch a JWT-SVID from the SPIRE agent for the Keycloak audience.
         String jwtToken;
         try {
-            jwtToken = jwtSource.fetchJwtSvid("https://keycloak.keycloak.svc.cluster.local/realms/spiffe").getToken();
+            jwtToken = jwtSource.fetchJwtSvid(keycloakHost + "/realms/spiffe").getToken();
         } catch (JwtSvidException e) {
             log.errorf("Failed to fetch JWT SVID: %s", e.getMessage());
             return;
@@ -152,15 +153,13 @@ public class HelloScheduler {
 
         // Exchange the JWT-SVID for a Keycloak access token using the client_credentials grant.
         String formBody = "grant_type=client_credentials"
-              + "&client_id=hello-client"
               + "&client_assertion_type=" + URLEncoder.encode("urn:ietf:params:oauth:client-assertion-type:jwt-spiffe", StandardCharsets.UTF_8)
               + "&client_assertion=" + URLEncoder.encode(jwtToken, StandardCharsets.UTF_8);
         try {
             HttpRequest tokenRequest = HttpRequest.newBuilder()
-                  .uri(URI.create("https://keycloak.keycloak.svc.cluster.local:8443/realms/spiffe/protocol/openid-connect/token"))
+                  .uri(URI.create(keycloakHost + "/realms/spiffe/protocol/openid-connect/token"))
                   .header("Content-Type", "application/x-www-form-urlencoded")
                   .POST(HttpRequest.BodyPublishers.ofString(formBody))
-                  .timeout(Duration.ofSeconds(1))
                   .build();
             HttpResponse<String> tokenResponse = httpClient.send(tokenRequest, HttpResponse.BodyHandlers.ofString());
             log.infof("Keycloak token response [%d]: %s", tokenResponse.statusCode(), tokenResponse.body());

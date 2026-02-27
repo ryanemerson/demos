@@ -11,15 +11,15 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 echo "--- Deploying SPIRE ---"
 
 # Create unsigned CA
-openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,DNS:*.localdomain,IP:127.0.0.1" \
-  -keyout /tmp/localhost-unsigned.key \
-  -out /tmp/localhost-unsigned.pem
+openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -subj "/CN=spire-server" -addext "subjectAltName=DNS:spire-server.spire.svc.cluster.local" \
+  -keyout /tmp/unsigned.key \
+  -out /tmp/unsigned.pem
 
 kubectl create namespace spire || true
 kubectl -n spire delete secret oidc-discovery-certs --ignore-not-found
 kubectl -n spire create secret tls oidc-discovery-certs \
-  --cert=/tmp/localhost-unsigned.pem \
-  --key=/tmp/localhost-unsigned.key
+  --cert=/tmp/unsigned.pem \
+  --key=/tmp/unsigned.key
 
 envsubst < "${SCRIPT_DIR}/spire/agent.yml" | kubectl apply -f -
 envsubst < "${SCRIPT_DIR}/spire/server.yml" | kubectl apply -f -

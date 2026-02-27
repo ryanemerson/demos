@@ -30,4 +30,3 @@ function provisionMinikube() {
 
 provisionMinikube
 
-${SCRIPT_DIR}/init-image.sh

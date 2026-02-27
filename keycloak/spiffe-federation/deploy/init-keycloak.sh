@@ -2,6 +2,13 @@
 set -e
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
+kubectl create namespace keycloak --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl delete secret spiffe-server-oidc-ca -n keycloak --ignore-not-found
+kubectl create secret generic spiffe-server-oidc-ca -n keycloak \
+  --from-literal=ca.pem="$(kubectl get secret oidc-discovery-certs -n spire -o jsonpath='{.data.tls\.crt}' | base64 -d)" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 kubectl apply -f "${SCRIPT_DIR}/keycloak/keycloak.yml"
 kubectl rollout status statefulset/keycloak -n keycloak
 
@@ -32,12 +39,12 @@ echo "------------------------------------------"
 echo "Create Kubernetes Identity Provider config"
 echo "------------------------------------------"
 
-$KCADMIN create identity-provider/instances -r spiffe -s alias=spiffe -s providerId=spiffe -s config='{"trustDomain": "spiffe://demo.example.com", "bundleEndpoint": "https://spire-server.spire.svc.cluster.local:443"}'
+$KCADMIN create identity-provider/instances -r spiffe -s alias=spiffe -s providerId=spiffe -s config='{"trustDomain": "spiffe://demo.example.com", "bundleEndpoint": "https://spire-server.spire.svc.cluster.local:443/keys"}'
 
 echo "------------------------------------------------------------"
 echo "Create client authenticating with SPIFFE"
 echo "------------------------------------------------------------"
 
-$KCADMIN  create clients -r spiffe -s clientId=hello-client -s serviceAccountsEnabled=true -s clientAuthenticatorType=federated-jwt -s attributes='{ "jwt.credential.issuer": "spiffe", "jwt.credential.sub": " spiffe://demo.example.com/hello-client" }'
+$KCADMIN  create clients -r spiffe -s clientId=hello-client -s serviceAccountsEnabled=true -s clientAuthenticatorType=federated-jwt -s attributes='{ "jwt.credential.issuer": "spiffe", "jwt.credential.sub": "spiffe://demo.example.com/hello-client" }'
 
 echo "Keycloak setup complete."

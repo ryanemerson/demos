@@ -7,6 +7,11 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 eval $(minikube -p minikube docker-env)
 export DOCKER_API_VERSION=1.44
 
+echo "Building quarkus-hello-server..."
+cd "${SCRIPT_DIR}/../server"
+mvn clean package -DskipTests -q
+docker build -t quarkus-hello-server:latest .
+
 echo "Building quarkus-hello-client..."
 cd "${SCRIPT_DIR}/../client"
 mvn clean package -DskipTests -q

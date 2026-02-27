@@ -152,6 +152,7 @@ public class HelloScheduler {
         logJwt("JWT-SVID", jwtToken);
 
         // Exchange the JWT-SVID for a Keycloak access token using the client_credentials grant.
+        String accessToken;
         String formBody = "grant_type=client_credentials"
               + "&client_assertion_type=" + URLEncoder.encode("urn:ietf:params:oauth:client-assertion-type:jwt-spiffe", StandardCharsets.UTF_8)
               + "&client_assertion=" + URLEncoder.encode(jwtToken, StandardCharsets.UTF_8);
@@ -163,6 +164,9 @@ public class HelloScheduler {
                   .build();
             HttpResponse<String> tokenResponse = httpClient.send(tokenRequest, HttpResponse.BodyHandlers.ofString());
             log.infof("Keycloak token response [%d]: %s", tokenResponse.statusCode(), tokenResponse.body());
+
+            accessToken = new ObjectMapper().readTree(tokenResponse.body()).get("access_token").asText();
+            logJwt("Access Token", accessToken);
         } catch (Exception e) {
             log.errorf(e, "Failed to obtain token from Keycloak: %s", e.getMessage());
             return;
@@ -175,7 +179,15 @@ public class HelloScheduler {
                   .GET()
                   .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            log.infof("Response: %s", response.body());
+            log.infof("Unauthorized response %d: %s", response.statusCode(), response.body());
+
+            request = HttpRequest.newBuilder()
+                  .uri(URI.create(serverUrl + "/hello/" + name))
+                  .header("Authorization", "Bearer " + accessToken)
+                  .GET()
+                  .build();
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            log.infof("Authorized response %d: %s", response.statusCode(), response.body());
         } catch (Exception e) {
             log.errorf("Failed to call hello-server: %s", e.getMessage());
         }

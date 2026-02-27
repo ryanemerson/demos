@@ -45,6 +45,22 @@ echo "------------------------------------------------------------"
 echo "Create client authenticating with SPIFFE"
 echo "------------------------------------------------------------"
 
-$KCADMIN  create clients -r spiffe -s clientId=hello-client -s serviceAccountsEnabled=true -s clientAuthenticatorType=federated-jwt -s attributes='{ "jwt.credential.issuer": "spiffe", "jwt.credential.sub": "spiffe://demo.example.com/hello-client" }'
+$KCADMIN create clients -r spiffe -s clientId=hello-client -s serviceAccountsEnabled=true -s clientAuthenticatorType=federated-jwt -s attributes='{ "jwt.credential.issuer": "spiffe", "jwt.credential.sub": "spiffe://demo.example.com/hello-client" }'
+
+echo "------------------------------------------------------------"
+echo "Create 'friend' role and assign to hello-client"
+echo "------------------------------------------------------------"
+
+$KCADMIN create roles -r spiffe -s name=friend
+$KCADMIN add-roles -r spiffe --uusername service-account-hello-client --rolename friend
+
+echo "------------------------------------------------------------"
+echo "Enable mTLS client authentication"
+echo "------------------------------------------------------------"
+# TODO there's currently no way to use the kcadm.sh cli with mTLS so we have to start with KC_HTTPS_CLIENT_AUTH=none and then set it to required
+kubectl -n keycloak patch statefulset keycloak --type json -p '[
+  {"op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": {"name": "KC_HTTPS_CLIENT_AUTH", "value": "required"}}
+]'
+kubectl rollout status statefulset/keycloak -n keycloak
 
 echo "Keycloak setup complete."

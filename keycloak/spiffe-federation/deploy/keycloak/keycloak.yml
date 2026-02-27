@@ -114,6 +114,8 @@ spec:
               value: "/opt/spiffe-certs/svid_key.pem"
             - name: KC_TRUSTSTORE_PATHS
               value: "/opt/spiffe-server-oidc-ca/ca.pem,/opt/spiffe-certs/bundle.pem"
+            - name: KC_HTTPS_MANAGEMENT_CLIENT_AUTH
+              value: "none"
             # SPIRE default expiration
             # Signing CA 24hr - Rotate every 12hr
             # X.509-SVIDs 1hr - Rotate every 30m
@@ -136,6 +138,8 @@ spec:
               port: 9000
               scheme: HTTPS
           volumeMounts:
+            - name: keycloak-data
+              mountPath: /opt/keycloak/data
             - name: spiffe-certs
               mountPath: /opt/spiffe-certs
             - name: spiffe-server-oidc-ca
@@ -154,3 +158,11 @@ spec:
         - name: spiffe-server-oidc-ca
           secret:
             secretName: spiffe-server-oidc-ca
+  volumeClaimTemplates:
+    - metadata:
+        name: keycloak-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

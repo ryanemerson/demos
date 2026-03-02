@@ -7,120 +7,54 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyStore;
-import java.security.cert.X509Certificate;
 import java.util.Base64;
-import java.util.Random;
 
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import io.spiffe.exception.JwtSourceException;
-import io.spiffe.exception.SocketEndpointAddressException;
-import io.spiffe.exception.X509SourceException;
-import io.spiffe.provider.SpiffeSslContextFactory;
-import io.spiffe.provider.SpiffeTrustManagerFactory;
-import io.spiffe.spiffeid.SpiffeIdUtils;
-import io.spiffe.spiffeid.TrustDomain;
+import io.quarkus.tls.TlsConfiguration;
+import io.quarkus.tls.TlsConfigurationRegistry;
 import io.spiffe.workloadapi.CachedJwtSource;
-import io.spiffe.workloadapi.DefaultX509Source;
 import io.spiffe.workloadapi.JwtSource;
-import io.spiffe.workloadapi.X509Source;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 
 @ApplicationScoped
 public class ZeroTrustContext {
 
     private static final Logger log = Logger.getLogger(ZeroTrustContext.class);
 
-    // Quarkus servers only enable v1.3 by default
-    private static final String TLS_PROTOCOL = "TLSv1.3";
-
     @ConfigProperty(name = "server.url")
     String serverUrl;
 
-    @ConfigProperty(name = "spiffe.ids", defaultValue = "*")
-    String spiffeIds;
+    @Inject
+    TlsConfigurationRegistry tlsRegistry;
 
-    @ConfigProperty(name = "spiffe.tls", defaultValue = "MTLS")
-    TLSConfig tlsMode;
-
-    enum TLSConfig {
-        MTLS,
-        TLS,
-        LEGACY
-    }
-
-    private volatile X509Source x509Source;
     private volatile JwtSource jwtSource;
     private volatile HttpClient httpClient;
 
     @PostConstruct
     void init() {
-        // Initialize SPIFFE sources. These open gRPC streams to the SPIRE Agent specified by
-        // SPIFFE_ENDPOINT_SOCKET and automatically rotate the certs/tokens stored in-memory.
         try {
-            x509Source = DefaultX509Source.newSource();
             jwtSource = CachedJwtSource.newSource();
 
-            log.info("Configuring SSLContext TLS=" + tlsMode);
+            TlsConfiguration tlsConfig = tlsRegistry.get("spiffe").orElseThrow(
+                    () -> new IllegalStateException("TLS configuration 'spiffe' not found"));
+            SSLContext sslContext = tlsConfig.createSSLContext();
+
             httpClient = HttpClient.newBuilder()
-                  .sslContext(getContext())
-                  .build();
-        } catch (X509SourceException | JwtSourceException | SocketEndpointAddressException e) {
-            log.error("Failed to initialize SPIFFE source: " + e.getMessage());
+                    .sslContext(sslContext)
+                    .build();
+            log.info("HttpClient initialized with Quarkus TLS Registry SSLContext");
         } catch (Exception e) {
-            log.error("Failed to generate SSL Context: " + e.getMessage());
+            log.error("Failed to initialize ZeroTrustContext: " + e.getMessage());
         }
-    }
-
-    SSLContext getContext() throws Exception {
-        boolean allowAllIds = "*".equals(spiffeIds);
-        return switch (tlsMode) {
-            case MTLS -> {
-                var optionsBuilder = SpiffeSslContextFactory.SslContextOptions.builder()
-                      .sslProtocol(TLS_PROTOCOL)
-                      .x509Source(x509Source);
-
-                if (allowAllIds) {
-                    optionsBuilder.acceptAnySpiffeId();
-                } else {
-                    optionsBuilder.acceptedSpiffeIdsSupplier(() -> SpiffeIdUtils.toSetOfSpiffeIds(spiffeIds));
-                }
-                yield SpiffeSslContextFactory.getSslContext(optionsBuilder.build());
-            }
-            case TLS -> {
-                SpiffeTrustManagerFactory trustManagerFactory = new SpiffeTrustManagerFactory();
-                TrustManager[] trustManagers = allowAllIds ?
-                      trustManagerFactory.engineGetTrustManagers(x509Source) :
-                      trustManagerFactory.engineGetTrustManagers(x509Source, () -> SpiffeIdUtils.toSetOfSpiffeIds(spiffeIds));
-                SSLContext ctx = SSLContext.getInstance(TLS_PROTOCOL);
-                ctx.init(null, trustManagers, null);
-                yield ctx;
-            }
-            case LEGACY -> {
-                String trustDomainName = "demo.example.com";
-                X509Certificate caCertificate = x509Source.getBundleForTrustDomain(TrustDomain.parse(trustDomainName)).getX509Authorities().iterator().next();
-                KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-                keyStore.load(null, null);
-                keyStore.setCertificateEntry(trustDomainName, caCertificate);
-
-                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-                tmf.init(keyStore);
-
-                SSLContext ctx = SSLContext.getInstance(TLS_PROTOCOL);
-                ctx.init(null, tmf.getTrustManagers(), null);
-                yield ctx;
-            }
-        };
     }
 
     HttpClient getHttpClient() {
@@ -167,14 +101,6 @@ public class ZeroTrustContext {
                 jwtSource.close();
             } catch (IOException e) {
                 log.warnf("Error closing SPIFFE JwtSource: %s", e.getMessage());
-            }
-        }
-
-        if (x509Source != null) {
-            try {
-                x509Source.close();
-            } catch (IOException e) {
-                log.warnf("Error closing SPIFFE X509Source: %s", e.getMessage());
             }
         }
     }

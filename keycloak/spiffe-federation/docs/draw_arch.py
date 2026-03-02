@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
 """
 Architecture diagram: SPIFFE/SPIRE + Keycloak + Quarkus on Kubernetes
+
+Requirements:
+    pip install Pillow
+
+Usage:
+    python3 docs/draw_arch.py
+
+Output is written to /tmp/spiffe_architecture.jpg.
+Copy it into the docs directory with:
+    cp /tmp/spiffe_architecture.jpg docs/architecture.jpg
 """
 from PIL import Image, ImageDraw, ImageFont
 import math
@@ -111,7 +121,7 @@ rrect(draw, NS_KC, C_NS_BG, C_NS_BORDER, radius=10, width=2)
 draw.text((565, 92), 'ns: keycloak', fill=C_NS_BORDER, font=f14, anchor='mm')
 
 # ns:client — right column, top
-NS_CLI = [760, 78, 1090, 290]
+NS_CLI = [760, 78, 1090, 302]
 rrect(draw, NS_CLI, C_NS_BG, C_NS_BORDER, radius=10, width=2)
 draw.text((925, 92), 'ns: client', fill=C_NS_BORDER, font=f14, anchor='mm')
 
@@ -165,33 +175,29 @@ KC_POD = [418, 108, 712, 328]
 rrect(draw, KC_POD, C_COMP_BG, C_COMP_BORDER, radius=6, width=2)
 centred(draw, 'Keycloak', 565, 134, f13)
 centred(draw, '(StatefulSet)', 565, 154, f11, '#546E7A')
-# spiffe-helper sidecar
-KCSH = [430, 178, 700, 318]
+# spiffe-helper sidecar — anchored to bottom of KC_POD
+KCSH = [430, 260, 700, 320]
 rrect(draw, KCSH, C_SIDECAR_BG, C_SIDECAR_BORDER, radius=4, width=1)
-centred(draw, 'spiffe-helper  (native sidecar)', 565, 202, f11, '#2E7D32')
-draw.text((445, 218), '• svid.pem  (X.509-SVID cert chain)', fill='#37474F', font=f10)
-draw.text((445, 234), '• svid_key.pem  (private key)', fill='#37474F', font=f10)
-draw.text((445, 250), '• bundle.pem  (CA trust bundle)', fill='#37474F', font=f10)
-draw.text((445, 266), '• jwt.token  (JWT-SVID for OIDC)', fill='#37474F', font=f10)
-draw.text((445, 284), '↺ Rotates every 25 min', fill='#2E7D32', font=f10)
-draw.text((445, 300), '  (SPIRE X.509-SVID TTL 1 h → 30 m)', fill='#2E7D32', font=f10)
+centred(draw, 'spiffe-helper  (sidecar)', 565, 274, f11, '#2E7D32')
+draw.text((445, 288), '• svid.pem / svid_key.pem / bundle.pem', fill='#37474F', font=f10)
+draw.text((445, 302), '↺ Certificates auto-rotate via Workload API', fill='#2E7D32', font=f10)
 
 KC_LEFT = KC_POD[0];  KC_RIGHT = KC_POD[2]
 KC_MID_Y = (KC_POD[1] + KC_POD[3]) // 2
 
 # ── Quarkus Client pod ────────────────────────────────────────────────────
-CLI_POD = [778, 108, 1072, 278]
+CLI_POD = [778, 108, 1072, 290]
 rrect(draw, CLI_POD, C_COMP_BG, C_COMP_BORDER, radius=6, width=2)
-centred(draw, 'Quarkus Client', 925, 132, f13)
-centred(draw, '(Deployment)', 925, 152, f11, '#546E7A')
-# java-spiffe note
-CLIPY = [790, 172, 1060, 268]
+centred(draw, 'Quarkus Client', 925, 130, f13)
+centred(draw, '(Deployment)', 925, 148, f11, '#546E7A')
+draw.text((793, 164), '• SPIFFE Workload API request SVID JWT', fill='#37474F', font=f10)
+
+# spiffe-helper sidecar — anchored to bottom of CLI_POD
+CLIPY = [790, 222, 1060, 282]
 rrect(draw, CLIPY, C_SIDECAR_BG, C_SIDECAR_BORDER, radius=4, width=1)
-centred(draw, 'java-spiffe library (embedded)', 925, 192, f11, '#2E7D32')
-draw.text((805, 208), '• DefaultX509Source  (X.509-SVID)', fill='#37474F', font=f10)
-draw.text((805, 224), '• CachedJwtSource  (JWT-SVID, cached)', fill='#37474F', font=f10)
-draw.text((805, 240), '• SpiffeSslContextFactory  (mTLS)', fill='#37474F', font=f10)
-draw.text((805, 254), '• JDK HttpClient  (outbound calls)', fill='#37474F', font=f10)
+centred(draw, 'spiffe-helper  (sidecar)', 925, 236, f11, '#2E7D32')
+draw.text((805, 250), '• svid.pem / svid_key.pem / bundle.pem', fill='#37474F', font=f10)
+draw.text((805, 264), '↺ Certificates auto-rotate via Workload API', fill='#2E7D32', font=f10)
 
 CLI_LEFT = CLI_POD[0];  CLI_BOT = CLI_POD[3];  CLI_MID_X = 925
 CLI_TOP = CLI_POD[1];   CLI_MID_Y = (CLI_POD[1] + CLI_POD[3]) // 2
@@ -201,13 +207,12 @@ SRV_POD = [778, 358, 1072, 520]
 rrect(draw, SRV_POD, C_COMP_BG, C_COMP_BORDER, radius=6, width=2)
 centred(draw, 'Quarkus Server', 925, 382, f13)
 centred(draw, '(Deployment)', 925, 402, f11, '#546E7A')
-# spiffe-helper sidecar
-SRVSH = [790, 422, 1060, 510]
+# spiffe-helper sidecar — anchored to bottom of SRV_POD
+SRVSH = [790, 452, 1060, 512]
 rrect(draw, SRVSH, C_SIDECAR_BG, C_SIDECAR_BORDER, radius=4, width=1)
-centred(draw, 'spiffe-helper  (native sidecar)', 925, 444, f11, '#2E7D32')
-draw.text((805, 460), '• svid.pem / svid_key.pem / bundle.pem', fill='#37474F', font=f10)
-draw.text((805, 476), '• Mounted into Quarkus Server for mTLS', fill='#37474F', font=f10)
-draw.text((805, 492), '↺ Auto-rotates via Workload API', fill='#2E7D32', font=f10)
+centred(draw, 'spiffe-helper  (sidecar)', 925, 466, f11, '#2E7D32')
+draw.text((805, 480), '• svid.pem / svid_key.pem / bundle.pem', fill='#37474F', font=f10)
+draw.text((805, 494), '↺ Certificates auto-rotate via Workload API', fill='#2E7D32', font=f10)
 
 SRV_LEFT = SRV_POD[0];  SRV_TOP = SRV_POD[1];  SRV_MID_Y = (SRV_POD[1] + SRV_POD[3]) // 2
 SRV_MID_X = 925
@@ -226,26 +231,29 @@ arrow(draw, SA_CX, SA_TOP, SS_CX, SS_BOT,
       color=NAVY, width=2, bidirectional=True)
 arrow_label(draw, 'gRPC :8081', SA_CX + 30, (SA_TOP + SS_BOT) // 2, f10, NAVY)
 
+# Sidecar midpoints for arrow targets
+KCSH_LEFT = KCSH[0];  KCSH_MID_Y = (KCSH[1] + KCSH[3]) // 2
+CLIPY_LEFT = CLIPY[0]; CLIPY_MID_Y = (CLIPY[1] + CLIPY[3]) // 2
+SRVSH_LEFT = SRVSH[0]; SRVSH_MID_Y = (SRVSH[1] + SRVSH[3]) // 2
+
 # 2. SPIRE Agent → Keycloak spiffe-helper (Workload API)
-#    from SA right edge middle to KC left edge middle
-arrow(draw, SA_RIGHT, SA_MID_Y, KC_LEFT, KC_MID_Y, color=GREEN, width=2)
+arrow(draw, SA_RIGHT, SA_MID_Y, KCSH_LEFT, KCSH_MID_Y, color=GREEN, width=2)
 arrow_label(draw, 'Workload API  (socket)',
-            (SA_RIGHT + KC_LEFT) // 2, SA_MID_Y - 14, f10, GREEN)
+            (SA_RIGHT + KCSH_LEFT) // 2, (SA_MID_Y + KCSH_MID_Y) // 2 - 14, f10, GREEN)
 
 # 3. SPIRE Agent → Quarkus Client (Workload API) — route via a bend
-#    SA right, SA_MID_Y → bend right to x=390 → up to CLI left, CLI_MID_Y
 bx = 385
 draw.line([(SA_RIGHT, SA_MID_Y + 20), (bx, SA_MID_Y + 20)], fill=GREEN, width=2)
-draw.line([(bx, SA_MID_Y + 20), (bx, CLI_MID_Y)], fill=GREEN, width=2)
-arrow(draw, bx, CLI_MID_Y, CLI_LEFT, CLI_MID_Y, color=GREEN, width=2)
+draw.line([(bx, SA_MID_Y + 20), (bx, CLIPY_MID_Y)], fill=GREEN, width=2)
+arrow(draw, bx, CLIPY_MID_Y, CLIPY_LEFT, CLIPY_MID_Y, color=GREEN, width=2)
 arrow_label(draw, 'Workload API  (socket)',
-            (bx + CLI_LEFT) // 2, CLI_MID_Y - 14, f10, GREEN)
+            (bx + CLIPY_LEFT) // 2, CLIPY_MID_Y - 14, f10, GREEN)
 
-# 4. SPIRE Agent → Quarkus Server (Workload API) — route via bend below
-arrow(draw, SA_RIGHT, SA_MID_Y + 40, SRV_LEFT, SRV_MID_Y,
+# 4. SPIRE Agent → Quarkus Server (Workload API)
+arrow(draw, SA_RIGHT, SA_MID_Y + 40, SRVSH_LEFT, SRVSH_MID_Y,
       color=GREEN, width=2)
 arrow_label(draw, 'Workload API  (socket)',
-            (SA_RIGHT + SRV_LEFT) // 2 + 20, (SA_MID_Y + 40 + SRV_MID_Y) // 2 + 10,
+            (SA_RIGHT + SRVSH_LEFT) // 2 + 20, (SA_MID_Y + 40 + SRVSH_MID_Y) // 2 + 10,
             f10, GREEN)
 
 # 5. Keycloak → SPIRE Server oidc-discovery-provider  (JWKS / bundle endpoint)
@@ -262,21 +270,21 @@ arrow_label(draw, 'JWKS / bundle endpoint  (:443)',
 # ── OAuth 2.0 flow arrows ─────────────────────────────────────────────────
 # Step ①  Client → Keycloak: JWT-SVID exchange (token endpoint)
 KC_MID_X = 565
-arrow(draw, CLI_LEFT, CLI_MID_Y - 20,
-      KC_RIGHT, KC_MID_Y - 20, color=RED, width=2)
+arrow(draw, CLI_LEFT, CLI_MID_Y - 50,
+      KC_RIGHT, KC_MID_Y - 50, color=RED, width=2)
 arrow_label(draw, '① POST /token  (client_credentials + jwt-spiffe assertion)',
-            (CLI_LEFT + KC_RIGHT) // 2, CLI_MID_Y - 36, f10, RED)
+            (CLI_LEFT + KC_RIGHT) // 2, CLI_MID_Y - 70, f10, RED)
 
 # Step ② Keycloak → Client: access token response (dashed — draw as dots)
 for xi in range(KC_RIGHT + 4, CLI_LEFT - 4, 14):
-    draw.line([(xi, KC_MID_Y), (xi + 7, KC_MID_Y)], fill=RED, width=2)
-arrow(draw, CLI_LEFT - 1, KC_MID_Y, CLI_LEFT, KC_MID_Y, color=RED, width=2)
+    draw.line([(xi, KC_MID_Y - 20), (xi + 7, KC_MID_Y-20)], fill=RED, width=2)
+arrow(draw, CLI_LEFT - 1, KC_MID_Y - 20, CLI_LEFT, KC_MID_Y - 20, color=RED, width=2)
 arrow_label(draw, '② access_token  (JWT)',
-            (CLI_LEFT + KC_RIGHT) // 2, KC_MID_Y + 12, f10, RED)
+            (CLI_LEFT + KC_RIGHT) // 2, KC_MID_Y, f10, RED)
 
 # Step ③ Client → Server: mTLS (SPIFFE)  downward
 arrow(draw, CLI_MID_X, CLI_BOT, SRV_MID_X, SRV_TOP, color=PURPLE, width=2)
-arrow_label(draw, '③ mTLS  (SPIFFE X.509)', CLI_MID_X + 56, (CLI_BOT + SRV_TOP) // 2,
+arrow_label(draw, '③ mTLS  (SPIFFE X.509)', CLI_MID_X + 56, (CLI_BOT + SRV_TOP - 15) // 2,
             f10, PURPLE)
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -288,8 +296,8 @@ centred(draw, 'Authentication Flow', 575, 564, f14, '#263238')
 
 steps = [
     ("①", NAVY,   "SPIRE Agent attests workloads and distributes X.509-SVIDs & JWT-SVIDs via the Workload API socket."),
-    ("②", GREEN,  "spiffe-helper (sidecar) writes certificate files and jwt.token to a shared emptyDir volume for Keycloak/Server."),
-    ("③", RED,    "Quarkus Client fetches a JWT-SVID from CachedJwtSource, POSTs it to Keycloak's token endpoint (client_credentials + jwt-spiffe assertion)."),
+    ("②", GREEN,  "spiffe-helper (sidecar) writes PEM files to a shared emptyDir volume for Keycloak, Client, and Server."),
+    ("③", RED,    "Quarkus Client fetches a JWT-SVID via java-spiffe, POSTs it to Keycloak's token endpoint (client_credentials + jwt-spiffe assertion)."),
     ("④", ORANGE, "Keycloak validates the JWT-SVID by fetching the JWKS from the SPIRE oidc-discovery-provider and issues an OAuth 2.0 access token."),
     ("⑤", PURPLE, "Quarkus Client presents the access token to Quarkus Server over a mutually authenticated TLS connection using SPIFFE X.509-SVIDs."),
 ]
@@ -318,7 +326,7 @@ key_items = [
     (ORANGE, 'OIDC / JWKS  (HTTPS)'),
     (RED,    'OAuth 2.0 token exchange'),
     (PURPLE, 'Application mTLS  (SPIFFE)'),
-    (C_SIDECAR_BORDER, 'Sidecar / embedded library'),
+    (C_SIDECAR_BORDER, 'spiffe-helper  (sidecar)'),
 ]
 for i, (col, label) in enumerate(key_items):
     y = 586 + i * 18
@@ -349,9 +357,7 @@ centred(draw, 'https://keycloak…/realms/spiffe', 1265, 270, f11, '#880E4F')
 CA = [1120, 305, 1410, 375]
 rrect(draw, CA, '#f3e5f5', '#4A148C', radius=6, width=2)
 centred(draw, 'Client Assertion Type', 1265, 322, f13, '#4A148C')
-draw.text((1130, 338), 'urn:ietf:params:oauth:', fill='#4A148C', font=f9 if (f9 := load_font(SANS, 9)) else f10)
-draw.text((1130, 352), 'client-assertion-type:', fill='#4A148C', font=f9)
-draw.text((1130, 366), 'jwt-spiffe', fill='#4A148C', font=f9)
+draw.text((1130, 338), 'urn:ietf:params:oauth:client-assertion-type:jwt-spiffe', fill='#4A148C', font=f9 if (f9 := load_font(SANS, 9)) else f10)
 
 # ── Save ───────────────────────────────────────────────────────────────────
 out = '/tmp/spiffe_architecture.jpg'

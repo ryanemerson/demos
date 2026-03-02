@@ -16,7 +16,6 @@
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.version>3.31.4</quarkus.platform.version>
         <skipITs>true</skipITs>
-        <spiffe.version>0.8.15</spiffe.version>
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
     </properties>
 
@@ -44,16 +43,6 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-arc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-scheduler</artifactId>
-        </dependency>
-        <!-- java-spiffe: connects to SPIRE Workload API to fetch X.509 SVIDs -->
-        <dependency>
-            <groupId>io.spiffe</groupId>
-            <artifactId>java-spiffe-provider</artifactId>
-            <version>${spiffe.version}</version>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>

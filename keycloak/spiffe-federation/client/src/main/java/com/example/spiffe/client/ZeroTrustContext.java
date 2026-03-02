@@ -146,12 +146,14 @@ public class ZeroTrustContext {
               .header("Content-Type", "application/x-www-form-urlencoded")
               .POST(HttpRequest.BodyPublishers.ofString(formBody))
               .build();
+        log.info("Requesting access token from Keycloak");
         HttpResponse<String> tokenResponse = httpClient.send(tokenRequest, HttpResponse.BodyHandlers.ofString());
-        log.infof("Keycloak token response [%d]: %s", tokenResponse.statusCode(), tokenResponse.body());
-
-        String accessToken = new ObjectMapper().readTree(tokenResponse.body()).get("access_token").asText();
-        logJwt("Access Token", accessToken);
-        return accessToken;
+        if (tokenResponse.statusCode() == 200) {
+            String accessToken = new ObjectMapper().readTree(tokenResponse.body()).get("access_token").asText();
+            logJwt("Access Token", accessToken);
+            return accessToken;
+        }
+        throw new IllegalStateException("Unable to retrieve token response [%d]: %s".formatted(tokenResponse.statusCode(), tokenResponse.body()));
     }
 
     @PreDestroy

@@ -296,6 +296,44 @@
             border-color: var(--accent);
             color: var(--accent);
         }
+
+        /* Architecture diagram */
+        .diagram-section {
+            margin-bottom: 2.5rem;
+        }
+
+        .diagram-section h2 {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .diagram-wrapper {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-surface);
+            padding: 2rem 1.5rem;
+        }
+
+        .diagram-wrapper svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .diagram-wrapper svg .box { fill: var(--bg-elevated); stroke: var(--border-accent); }
+        .diagram-wrapper svg .box-title { fill: var(--text-primary); font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; }
+        .diagram-wrapper svg .box-sub { fill: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
+        .diagram-wrapper svg .lifeline { stroke: var(--border-accent); stroke-dasharray: 6 4; stroke-width: 1; }
+        .diagram-wrapper svg .msg { stroke: var(--accent); fill: none; stroke-width: 1.5; }
+        .diagram-wrapper svg .msg-ret { stroke: var(--text-muted); stroke-dasharray: 6 3; fill: none; stroke-width: 1.5; }
+        .diagram-wrapper svg .msg-protocol { fill: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; }
+        .diagram-wrapper svg .msg-label { fill: var(--text-secondary); font-family: 'DM Sans', sans-serif; font-size: 10.5px; }
+        .diagram-wrapper svg .sep { stroke: var(--border); stroke-dasharray: 3 5; stroke-width: 1; }
     </style>
 </head>
 <body>
@@ -315,6 +353,97 @@
             </p>
         </header>
 
+        <section class="diagram-section">
+            <h2>Architecture</h2>
+            <div class="diagram-wrapper">
+                <svg viewBox="0 0 700 500" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <marker id="ah" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                            <polygon points="0 0, 8 3, 0 6" fill="var(--accent)" />
+                        </marker>
+                        <marker id="ah-ret" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                            <polygon points="0 0, 8 3, 0 6" fill="var(--text-muted)" />
+                        </marker>
+                    </defs>
+
+                    <!-- ── Participant headers ── -->
+                    <rect class="box" x="15" y="8" width="140" height="48" rx="6" stroke-width="1" />
+                    <text class="box-title" x="85" y="30" text-anchor="middle">Client</text>
+                    <text class="box-sub" x="85" y="44" text-anchor="middle">hello-client</text>
+
+                    <rect class="box" x="195" y="8" width="140" height="48" rx="6" stroke-width="1" />
+                    <text class="box-title" x="265" y="30" text-anchor="middle">Server</text>
+                    <text class="box-sub" x="265" y="44" text-anchor="middle">hello-server</text>
+
+                    <rect class="box" x="375" y="8" width="140" height="48" rx="6" stroke-width="1" />
+                    <text class="box-title" x="445" y="30" text-anchor="middle">Keycloak</text>
+                    <text class="box-sub" x="445" y="44" text-anchor="middle">Identity Provider</text>
+
+                    <rect class="box" x="555" y="8" width="140" height="48" rx="6" stroke-width="1" />
+                    <text class="box-title" x="625" y="30" text-anchor="middle">SPIRE</text>
+                    <text class="box-sub" x="625" y="44" text-anchor="middle">OIDC Discovery</text>
+
+                    <!-- ── Lifelines ── -->
+                    <line class="lifeline" x1="85"  y1="56" x2="85"  y2="490" />
+                    <line class="lifeline" x1="265" y1="56" x2="265" y2="490" />
+                    <line class="lifeline" x1="445" y1="56" x2="445" y2="490" />
+                    <line class="lifeline" x1="625" y1="56" x2="625" y2="490" />
+
+                    <!-- ══ Phase 1: Server Startup ══ -->
+
+                    <!-- 1. Server → Keycloak  (mTLS: fetch verification keys) -->
+                    <line class="msg" x1="265" y1="95" x2="437" y2="95" marker-end="url(#ah)" />
+                    <text class="msg-protocol" x="355" y="87" text-anchor="middle">mTLS</text>
+                    <text class="msg-label" x="355" y="111" text-anchor="middle">Fetch OIDC Verification Keys</text>
+
+                    <!-- 2. Keycloak → Server  (return: JWKS) -->
+                    <line class="msg-ret" x1="445" y1="133" x2="273" y2="133" marker-end="url(#ah-ret)" />
+                    <text class="msg-label" x="355" y="129" text-anchor="middle">JWKS Response</text>
+
+                    <!-- ── Phase separator ── -->
+                    <line class="sep" x1="10" y1="163" x2="690" y2="163" />
+
+                    <!-- ══ Phase 2: Token Exchange ══ -->
+
+                    <!-- 3. Client → Keycloak  (mTLS) -->
+                    <line class="msg" x1="85" y1="198" x2="437" y2="198" marker-end="url(#ah)" />
+                    <text class="msg-protocol" x="265" y="190" text-anchor="middle">mTLS</text>
+                    <text class="msg-label" x="265" y="214" text-anchor="middle">JWT-SVID (client_credentials)</text>
+
+                    <!-- 4. Keycloak → SPIRE  (TLS) -->
+                    <line class="msg" x1="445" y1="246" x2="617" y2="246" marker-end="url(#ah)" />
+                    <text class="msg-protocol" x="535" y="238" text-anchor="middle">TLS</text>
+                    <text class="msg-label" x="535" y="262" text-anchor="middle">Fetch JWKS</text>
+
+                    <!-- 5. SPIRE → Keycloak  (return) -->
+                    <line class="msg-ret" x1="625" y1="284" x2="453" y2="284" marker-end="url(#ah-ret)" />
+                    <text class="msg-label" x="535" y="280" text-anchor="middle">JWKS Response</text>
+
+                    <!-- 6. Keycloak → Client  (return: Access Token) -->
+                    <line class="msg-ret" x1="445" y1="322" x2="93" y2="322" marker-end="url(#ah-ret)" />
+                    <text class="msg-label" x="265" y="318" text-anchor="middle">Access Token</text>
+
+                    <!-- ── Phase separator ── -->
+                    <line class="sep" x1="10" y1="352" x2="690" y2="352" />
+
+                    <!-- ══ Phase 3: API Call ══ -->
+
+                    <!-- 7. Client → Server  (mTLS + Bearer) -->
+                    <line class="msg" x1="85" y1="387" x2="257" y2="387" marker-end="url(#ah)" />
+                    <text class="msg-protocol" x="175" y="379" text-anchor="middle">mTLS</text>
+                    <text class="msg-label" x="175" y="403" text-anchor="middle">/hello + Bearer Token</text>
+
+                    <!-- 8. Server self-loop: local token validation -->
+                    <path class="msg" d="M 265 425 L 315 425 L 315 447 L 273 447" marker-end="url(#ah)" />
+                    <text class="msg-label" x="322" y="440" text-anchor="start">Validate Token (local)</text>
+
+                    <!-- 9. Server → Client  (return: response) -->
+                    <line class="msg-ret" x1="265" y1="472" x2="93" y2="472" marker-end="url(#ah-ret)" />
+                    <text class="msg-label" x="175" y="468" text-anchor="middle">200: Hello, World!</text>
+                </svg>
+            </div>
+        </section>
+
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -327,7 +456,7 @@
                 <tbody>
                     <tr>
                         <td><button onclick="callEndpoint('authorized-hello', 'authorized-hello-result', this)">Authorized Hello</button></td>
-                        <td class="description">Calls <code>/hello</code> with a valid Bearer token containing the <code>friend</code> role. Expected: <code>200</code></td>
+                        <td class="description">Calls <code>/hello</code> with a valid Bearer token containing the <code>admin</code> role. Expected: <code>200</code></td>
                         <td><span class="result" id="authorized-hello-result"></span></td>
                     </tr>
                     <tr>
@@ -337,7 +466,7 @@
                     </tr>
                     <tr>
                         <td><button onclick="callEndpoint('authorized-admin', 'authorized-admin-result', this)">Authorized Admin</button></td>
-                        <td class="description">Calls <code>/admin</code> with a valid Bearer token containing the 'admin' role. Expected: <code>200</code></td>
+                        <td class="description">Calls <code>/admin</code> with a valid Bearer token containing the <code>admin</code> role. Expected: <code>200</code></td>
                         <td><span class="result" id="authorized-admin-result"></span></td>
                     </tr>
                     <tr>

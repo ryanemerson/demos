@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPIFFE + Keycloak Zero Trust</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --mono: 'IBM Plex Mono', monospace;
+            --sans: 'DM Sans', sans-serif;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0e1117;
+            --bg-surface: #161b22;
+            --bg-elevated: #1c2129;
+            --border: #2d333b;
+            --border-accent: #3d444d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #636c76;
+            --accent: #00d4aa;
+            --accent-dim: rgba(0, 212, 170, 0.12);
+            --accent-glow: rgba(0, 212, 170, 0.25);
+            --warning: #d4a017;
+            --danger: #f85149;
+            --code-bg: rgba(255, 255, 255, 0.06);
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f6f8fa;
+            --bg-surface: #ffffff;
+            --bg-elevated: #f0f2f5;
+            --border: #d0d7de;
+            --border-accent: #b8bfc7;
+            --text-primary: #1f2328;
+            --text-secondary: #59636e;
+            --text-muted: #818b98;
+            --accent: #00876e;
+            --accent-dim: rgba(0, 135, 110, 0.08);
+            --accent-glow: rgba(0, 135, 110, 0.15);
+            --warning: #9a6700;
+            --danger: #d1242f;
+            --code-bg: rgba(0, 0, 0, 0.05);
+        }
+
+        body {
+            font-family: var(--sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 3rem 2rem;
+            transition: background 0.25s ease, color 0.25s ease;
+        }
+
+        [data-theme="dark"] body {
+            background-image:
+                radial-gradient(ellipse at 20% 0%, rgba(0, 212, 170, 0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 100%, rgba(0, 212, 170, 0.02) 0%, transparent 50%);
+        }
+
+        [data-theme="light"] body {
+            background-image:
+                radial-gradient(ellipse at 20% 0%, rgba(0, 135, 110, 0.05) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 100%, rgba(0, 135, 110, 0.03) 0%, transparent 50%);
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-label {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-label::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--accent-glow);
+            animation: pulse 2.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--accent-glow); }
+            50% { opacity: 0.6; box-shadow: 0 0 4px var(--accent-glow); }
+        }
+
+        h1 {
+            font-family: var(--mono);
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* Table */
+        .table-wrapper {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--bg-surface);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            background: var(--bg-elevated);
+            padding: 0.85rem 1.25rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        thead th:first-child { width: 170px; }
+        thead th:nth-child(2) { width: 40%; }
+
+        tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s ease;
+        }
+
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr:hover { background: var(--bg-elevated); }
+
+        td {
+            padding: 1rem 1.25rem;
+            vertical-align: middle;
+        }
+
+        .description {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        .description code {
+            font-family: var(--mono);
+            font-size: 0.78rem;
+            background: var(--code-bg);
+            padding: 0.15em 0.45em;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        /* Buttons */
+        button {
+            font-family: var(--mono);
+            font-size: 0.78rem;
+            font-weight: 500;
+            padding: 0.55rem 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-accent);
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+            width: 100%;
+        }
+
+        button:hover {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+            color: var(--accent);
+            box-shadow: 0 0 12px rgba(0, 212, 170, 0.08);
+        }
+
+        button:active {
+            transform: scale(0.97);
+        }
+
+        button.loading {
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        /* Result cells */
+        .result {
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            min-height: 1.2em;
+            color: var(--text-muted);
+            transition: color 0.2s ease;
+            word-break: break-word;
+        }
+
+        .result.loading-state {
+            color: var(--text-muted);
+        }
+
+        .result.success {
+            color: var(--accent);
+        }
+
+        .result.client-error {
+            color: var(--warning);
+        }
+
+        .result.server-error {
+            color: var(--danger);
+        }
+
+        .result.error {
+            color: var(--danger);
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .footer-tag {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            padding: 0.35rem 0.7rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            letter-spacing: 0.03em;
+        }
+
+        /* Header row with toggle */
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Theme toggle */
+        .theme-toggle {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-accent);
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            width: auto;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-top">
+                <div class="header-label">Zero Trust Demo</div>
+                <button class="theme-toggle" onclick="toggleTheme()">
+                    <span id="theme-icon">&#9788;</span>
+                    <span id="theme-label">Light</span>
+                </button>
+            </div>
+            <h1>SPIFFE + Keycloak</h1>
+            <p class="subtitle">
+                Test role-based access control enforced by Bearer tokens issued via SPIFFE federation.
+                Each action calls the hello-server over mTLS with different authorization contexts.
+            </p>
+        </header>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Action</th>
+                        <th>Description</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><button onclick="callEndpoint('authorized-hello', 'authorized-hello-result', this)">Authorized Hello</button></td>
+                        <td class="description">Calls <code>/hello</code> with a valid Bearer token containing the <code>friend</code> role. Expected: <code>200</code></td>
+                        <td><span class="result" id="authorized-hello-result"></span></td>
+                    </tr>
+                    <tr>
+                        <td><button onclick="callEndpoint('unauthorized-hello', 'unauthorized-hello-result', this)">Unauthorized Hello</button></td>
+                        <td class="description">Calls <code>/hello</code> without a Bearer token. The server should accept the request as no Authorization required for this endpoint. Expected: <code>200</code></td>
+                        <td><span class="result" id="unauthorized-hello-result"></span></td>
+                    </tr>
+                    <tr>
+                        <td><button onclick="callEndpoint('authorized-admin', 'authorized-admin-result', this)">Authorized Admin</button></td>
+                        <td class="description">Calls <code>/admin</code> with a valid Bearer token containing the 'admin' role. Expected: <code>200</code></td>
+                        <td><span class="result" id="authorized-admin-result"></span></td>
+                    </tr>
+                    <tr>
+                        <td><button onclick="callEndpoint('unauthorized-admin', 'unauthorized-admin-result', this)">Unauthorized Admin</button></td>
+                        <td class="description">Calls <code>/admin</code> without a Bearer token. Expected: <code>403</code></td>
+                        <td><span class="result" id="unauthorized-admin-result"></span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="footer">
+            <span class="footer-tag">SPIFFE / SPIRE</span>
+            <span class="footer-tag">Keycloak</span>
+            <span class="footer-tag">mTLS</span>
+            <span class="footer-tag">JWT-SVID</span>
+            <span class="footer-tag">RBAC</span>
+        </footer>
+    </div>
+
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            const next = isDark ? 'light' : 'dark';
+            html.setAttribute('data-theme', next);
+            document.getElementById('theme-icon').innerHTML = isDark ? '&#9790;' : '&#9788;';
+            document.getElementById('theme-label').textContent = isDark ? 'Dark' : 'Light';
+            localStorage.setItem('theme', next);
+        }
+
+        (function() {
+            const saved = localStorage.getItem('theme');
+            if (saved) {
+                document.documentElement.setAttribute('data-theme', saved);
+                if (saved === 'light') {
+                    document.getElementById('theme-icon').innerHTML = '&#9790;';
+                    document.getElementById('theme-label').textContent = 'Dark';
+                }
+            }
+        })();
+
+        async function callEndpoint(path, resultId, btn) {
+            const cell = document.getElementById(resultId);
+            cell.className = 'result loading-state';
+            cell.textContent = 'Requesting\u2026';
+            btn.classList.add('loading');
+            try {
+                const response = await fetch('/' + path);
+                const text = await response.text();
+                cell.textContent = text;
+                const status = parseInt(text, 10);
+                if (status >= 200 && status < 300) cell.className = 'result success';
+                else if (status >= 400 && status < 500) cell.className = 'result client-error';
+                else if (status >= 500) cell.className = 'result server-error';
+                else cell.className = 'result';
+            } catch (error) {
+                cell.textContent = 'Error: ' + error.message;
+                cell.className = 'result error';
+            } finally {
+                btn.classList.remove('loading');
+            }
+        }
+    </script>
+</body>
+</html>

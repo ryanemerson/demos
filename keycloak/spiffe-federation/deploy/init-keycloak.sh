@@ -48,11 +48,11 @@ echo "------------------------------------------------------------"
 $KCADMIN create clients -r spiffe -s clientId=hello-client -s serviceAccountsEnabled=true -s clientAuthenticatorType=federated-jwt -s attributes='{ "jwt.credential.issuer": "spiffe", "jwt.credential.sub": "spiffe://demo.example.com/hello-client" }'
 
 echo "------------------------------------------------------------"
-echo "Create 'friend' role and assign to hello-client"
+echo "Create 'admin' role and assign to hello-client"
 echo "------------------------------------------------------------"
 
-$KCADMIN create roles -r spiffe -s name=friend
-$KCADMIN add-roles -r spiffe --uusername service-account-hello-client --rolename friend
+$KCADMIN create roles -r spiffe -s name=admin
+$KCADMIN add-roles -r spiffe --uusername service-account-hello-client --rolename admin
 
 echo "------------------------------------------------------------"
 echo "Enable mTLS client authentication"

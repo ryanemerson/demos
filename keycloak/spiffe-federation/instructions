@@ -1,0 +1,14 @@
+Update the client application so that it serves a static webpage.
+
+The page should contain a table that consists of two columns: Action and Result.
+The table should have three rows with a button in the "Action" column. The three
+rows should have different button names "Authorized", "Unauthorized" and
+"Unknown".
+
+When each button is clicked it should call a REST resource with the same path as
+the button name, but the path should be all lowercase on the server-side. When
+executed, each resource should return a String that is then displayed
+on the frontend webpage.
+
+Add the necessary quarkus extension, web pages and server resources in order for
+this to work as described.

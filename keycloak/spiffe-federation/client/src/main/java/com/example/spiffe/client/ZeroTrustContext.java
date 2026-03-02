@@ -9,11 +9,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
-import java.time.Duration;
 import java.util.Base64;
 import java.util.Random;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -22,9 +19,9 @@ import javax.net.ssl.TrustManagerFactory;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
-import io.quarkus.scheduler.Scheduled;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.spiffe.exception.JwtSourceException;
-import io.spiffe.exception.JwtSvidException;
 import io.spiffe.exception.SocketEndpointAddressException;
 import io.spiffe.exception.X509SourceException;
 import io.spiffe.provider.SpiffeSslContextFactory;
@@ -39,26 +36,15 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 
-/**
- * Calls the hello-server every second with a random name using the JDK
- * java.net.http.HttpClient and a SSLContext initialised/updated by the java-spiffe libraries.
- */
 @ApplicationScoped
-public class HelloScheduler {
+public class ZeroTrustContext {
 
-    private static final Logger log = Logger.getLogger(HelloScheduler.class);
+    private static final Logger log = Logger.getLogger(ZeroTrustContext.class);
 
     // Quarkus servers only enable v1.3 by default
     private static final String TLS_PROTOCOL = "TLSv1.3";
 
-    private static final String[] NAMES = {
-          "Alice", "Bob", "Charlie", "Diana", "Eve",
-          "Frank", "Grace", "Hank", "Iris", "Jack"
-    };
-
-    private final Random random = new Random();
-
-    @ConfigProperty(name = "hello.server.url")
+    @ConfigProperty(name = "server.url")
     String serverUrl;
 
     @ConfigProperty(name = "spiffe.ids", defaultValue = "*")
@@ -94,7 +80,6 @@ public class HelloScheduler {
         } catch (Exception e) {
             log.error("Failed to generate SSL Context: " + e.getMessage());
         }
-        callServer();
     }
 
     SSLContext getContext() throws Exception {
@@ -138,59 +123,35 @@ public class HelloScheduler {
         };
     }
 
-    @Scheduled(every = "60s", delayed = "5s")
-    void callServer() {
+    HttpClient getHttpClient() {
+        return httpClient;
+    }
+
+    String getServerUrl() {
+        return serverUrl;
+    }
+
+    String fetchAccessToken() throws Exception {
         String keycloakHost = "https://keycloak.keycloak.svc.cluster.local:8443";
         // Fetch a JWT-SVID from the SPIRE agent for the Keycloak audience.
-        String jwtToken;
-        try {
-            jwtToken = jwtSource.fetchJwtSvid(keycloakHost + "/realms/spiffe").getToken();
-        } catch (JwtSvidException e) {
-            log.errorf("Failed to fetch JWT SVID: %s", e.getMessage());
-            return;
-        }
+        String jwtToken = jwtSource.fetchJwtSvid(keycloakHost + "/realms/spiffe").getToken();
         logJwt("JWT-SVID", jwtToken);
 
         // Exchange the JWT-SVID for a Keycloak access token using the client_credentials grant.
-        String accessToken;
         String formBody = "grant_type=client_credentials"
               + "&client_assertion_type=" + URLEncoder.encode("urn:ietf:params:oauth:client-assertion-type:jwt-spiffe", StandardCharsets.UTF_8)
               + "&client_assertion=" + URLEncoder.encode(jwtToken, StandardCharsets.UTF_8);
-        try {
-            HttpRequest tokenRequest = HttpRequest.newBuilder()
-                  .uri(URI.create(keycloakHost + "/realms/spiffe/protocol/openid-connect/token"))
-                  .header("Content-Type", "application/x-www-form-urlencoded")
-                  .POST(HttpRequest.BodyPublishers.ofString(formBody))
-                  .build();
-            HttpResponse<String> tokenResponse = httpClient.send(tokenRequest, HttpResponse.BodyHandlers.ofString());
-            log.infof("Keycloak token response [%d]: %s", tokenResponse.statusCode(), tokenResponse.body());
+        HttpRequest tokenRequest = HttpRequest.newBuilder()
+              .uri(URI.create(keycloakHost + "/realms/spiffe/protocol/openid-connect/token"))
+              .header("Content-Type", "application/x-www-form-urlencoded")
+              .POST(HttpRequest.BodyPublishers.ofString(formBody))
+              .build();
+        HttpResponse<String> tokenResponse = httpClient.send(tokenRequest, HttpResponse.BodyHandlers.ofString());
+        log.infof("Keycloak token response [%d]: %s", tokenResponse.statusCode(), tokenResponse.body());
 
-            accessToken = new ObjectMapper().readTree(tokenResponse.body()).get("access_token").asText();
-            logJwt("Access Token", accessToken);
-        } catch (Exception e) {
-            log.errorf(e, "Failed to obtain token from Keycloak: %s", e.getMessage());
-            return;
-        }
-
-        String name = NAMES[random.nextInt(NAMES.length)];
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                  .uri(URI.create(serverUrl + "/hello/" + name))
-                  .GET()
-                  .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            log.infof("Unauthorized response %d: %s", response.statusCode(), response.body());
-
-            request = HttpRequest.newBuilder()
-                  .uri(URI.create(serverUrl + "/hello/" + name))
-                  .header("Authorization", "Bearer " + accessToken)
-                  .GET()
-                  .build();
-            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            log.infof("Authorized response %d: %s", response.statusCode(), response.body());
-        } catch (Exception e) {
-            log.errorf("Failed to call hello-server: %s", e.getMessage());
-        }
+        String accessToken = new ObjectMapper().readTree(tokenResponse.body()).get("access_token").asText();
+        logJwt("Access Token", accessToken);
+        return accessToken;
     }
 
     @PreDestroy

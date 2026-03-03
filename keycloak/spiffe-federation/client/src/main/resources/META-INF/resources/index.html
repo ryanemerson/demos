@@ -563,26 +563,26 @@
                     <line class="lifeline" x1="625" y1="56" x2="625" y2="550" />
                     <line class="lifeline" x1="805" y1="56" x2="805" y2="550" />
 
-                    <!-- ══ Phase 0: Browser Request ══ -->
+                    <!-- ══ Phase 0: Server Startup ══ -->
 
-                    <!-- 0. Browser → Client  (TLS: Request action) -->
-                    <line class="msg" x1="85" y1="90" x2="257" y2="90" marker-end="url(#ah)" />
-                    <text class="msg-protocol" x="175" y="82" text-anchor="middle">TLS</text>
-                    <text class="msg-label" x="175" y="106" text-anchor="middle">Request action</text>
+                    <!-- 0. Server → Keycloak  (mTLS: fetch verification keys) -->
+                    <line class="msg" x1="445" y1="90" x2="617" y2="90" marker-end="url(#ah)" />
+                    <text class="msg-protocol" x="535" y="82" text-anchor="middle">mTLS</text>
+                    <text class="msg-label" x="535" y="106" text-anchor="middle">Fetch OIDC Verification Keys</text>
+
+                    <!-- 1. Keycloak → Server  (return: JWKS) -->
+                    <line class="msg-ret" x1="625" y1="128" x2="453" y2="128" marker-end="url(#ah-ret)" />
+                    <text class="msg-label" x="535" y="124" text-anchor="middle">JWKS Response</text>
 
                     <!-- ── Phase separator ── -->
-                    <line class="sep" x1="10" y1="125" x2="870" y2="125" />
+                    <line class="sep" x1="10" y1="153" x2="870" y2="153" />
 
-                    <!-- ══ Phase 1: Server Startup ══ -->
+                    <!-- ══ Phase 1: Browser Request ══ -->
 
-                    <!-- 1. Server → Keycloak  (mTLS: fetch verification keys) -->
-                    <line class="msg" x1="445" y1="155" x2="617" y2="155" marker-end="url(#ah)" />
-                    <text class="msg-protocol" x="535" y="147" text-anchor="middle">mTLS</text>
-                    <text class="msg-label" x="535" y="171" text-anchor="middle">Fetch OIDC Verification Keys</text>
-
-                    <!-- 2. Keycloak → Server  (return: JWKS) -->
-                    <line class="msg-ret" x1="625" y1="193" x2="453" y2="193" marker-end="url(#ah-ret)" />
-                    <text class="msg-label" x="535" y="189" text-anchor="middle">JWKS Response</text>
+                    <!-- 2. Browser → Client  (TLS: Request action) -->
+                    <line class="msg" x1="85" y1="183" x2="257" y2="183" marker-end="url(#ah)" />
+                    <text class="msg-protocol" x="175" y="175" text-anchor="middle">TLS</text>
+                    <text class="msg-label" x="175" y="199" text-anchor="middle">Request action</text>
 
                     <!-- ── Phase separator ── -->
                     <line class="sep" x1="10" y1="218" x2="870" y2="218" />

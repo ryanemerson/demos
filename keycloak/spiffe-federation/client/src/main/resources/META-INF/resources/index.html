@@ -615,7 +615,7 @@
                     <!-- 7. Client → Server  (mTLS + Bearer) -->
                     <line class="msg" x1="265" y1="427" x2="437" y2="427" marker-end="url(#ah)" />
                     <text class="msg-protocol" x="355" y="419" text-anchor="middle">mTLS</text>
-                    <text class="msg-label" x="355" y="443" text-anchor="middle">/hello + Bearer Token</text>
+                    <text class="msg-label" x="355" y="443" text-anchor="middle">/admin + Bearer Token</text>
 
                     <!-- 8. Server self-loop: local token validation -->
                     <path class="msg" d="M 445 465 L 495 465 L 495 487 L 453 487" marker-end="url(#ah)" />
@@ -623,7 +623,7 @@
 
                     <!-- 9. Server → Client  (return: response) -->
                     <line class="msg-ret" x1="445" y1="510" x2="273" y2="510" marker-end="url(#ah-ret)" />
-                    <text class="msg-label" x="355" y="506" text-anchor="middle">200: Hello, World!</text>
+                    <text class="msg-label" x="355" y="506" text-anchor="middle">200: Admin Endpoint</text>
 
                     <!-- 10. Client → Browser  (return: response) -->
                     <line class="msg-ret" x1="265" y1="538" x2="93" y2="538" marker-end="url(#ah-ret)" />

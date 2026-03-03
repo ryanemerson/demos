@@ -7,7 +7,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+import java.security.cert.X509Certificate;
+import java.util.Collection;
 import java.util.Base64;
+import java.util.List;
 
 import javax.net.ssl.SSLContext;
 
@@ -51,7 +55,9 @@ public class ZeroTrustContext {
             httpClient = HttpClient.newBuilder()
                     .sslContext(sslContext)
                     .build();
-            log.info("HttpClient initialized with Quarkus TLS Registry SSLContext");
+
+            String spiffeID = extractSpiffedId(tlsConfig);
+            log.infof("SPIFFE identity: %s", spiffeID);
         } catch (Exception e) {
             log.error("Failed to initialize ZeroTrustContext: " + e.getMessage());
         }
@@ -66,8 +72,9 @@ public class ZeroTrustContext {
     }
 
     String fetchAccessToken() throws Exception {
-        String keycloakHost = "https://keycloak.keycloak.svc.cluster.local:8443";
         // Fetch a JWT-SVID from the SPIRE agent for the Keycloak audience.
+        String keycloakHost = "https://keycloak.keycloak.svc.cluster.local:8443";
+        log.info("Requesting a JWT-SVID from the Workload API for audience=" + keycloakHost);
         String jwtToken = jwtSource.fetchJwtSvid(keycloakHost + "/realms/spiffe").getToken();
         logJwt("JWT-SVID", jwtToken);
 
@@ -80,7 +87,7 @@ public class ZeroTrustContext {
               .header("Content-Type", "application/x-www-form-urlencoded")
               .POST(HttpRequest.BodyPublishers.ofString(formBody))
               .build();
-        log.info("Requesting access token from Keycloak");
+        log.info("Requesting access token from Keycloak using JWT-SVID");
         HttpResponse<String> tokenResponse = httpClient.send(tokenRequest, HttpResponse.BodyHandlers.ofString());
         if (tokenResponse.statusCode() == 200) {
             String accessToken = new ObjectMapper().readTree(tokenResponse.body()).get("access_token").asText();
@@ -102,6 +109,25 @@ public class ZeroTrustContext {
             } catch (IOException e) {
                 log.warnf("Error closing SPIFFE JwtSource: %s", e.getMessage());
             }
+        }
+    }
+
+    private String extractSpiffedId(TlsConfiguration tlsConfig) {
+        try {
+            KeyStore ks = tlsConfig.getKeyStore();
+            String alias = ks.aliases().nextElement();
+            X509Certificate cert = (X509Certificate) ks.getCertificate(alias);
+            Collection<List<?>> sans = cert.getSubjectAlternativeNames();
+            if (sans != null) {
+                for (List<?> san : sans) {
+                    if ((Integer) san.get(0) == 6) {
+                        return (String) san.get(1);
+                    }
+                }
+            }
+            throw new IllegalStateException("Unable to extract SPIFFE ID from certificate");
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to extract SPIFFE ID from certificate", e);
         }
     }
 

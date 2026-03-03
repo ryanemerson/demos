@@ -334,6 +334,19 @@
         .diagram-wrapper svg .msg-protocol { fill: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; }
         .diagram-wrapper svg .msg-label { fill: var(--text-secondary); font-family: 'DM Sans', sans-serif; font-size: 10.5px; }
         .diagram-wrapper svg .sep { stroke: var(--border); stroke-dasharray: 3 5; stroke-width: 1; }
+
+        /* Architecture diagram */
+        .diagram-wrapper svg .cluster { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 8 4; }
+        .diagram-wrapper svg .cluster-label { fill: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; }
+        .diagram-wrapper svg .pod { fill: var(--bg-elevated); stroke: var(--border-accent); stroke-width: 1.5; }
+        .diagram-wrapper svg .pod-title { fill: var(--text-primary); font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; }
+        .diagram-wrapper svg .pod-type { fill: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; }
+        .diagram-wrapper svg .sidecar { fill: var(--accent-dim); stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 2; }
+        .diagram-wrapper svg .sidecar-label { fill: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 500; }
+        .diagram-wrapper svg .socket-box { fill: none; stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 3; }
+        .diagram-wrapper svg .socket-label { fill: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: 9px; }
+        .diagram-wrapper svg .conn { stroke: var(--text-secondary); fill: none; stroke-width: 1.2; }
+        .diagram-wrapper svg .conn-label { fill: var(--text-secondary); font-family: 'IBM Plex Mono', monospace; font-size: 9px; }
     </style>
 </head>
 <body>
@@ -354,7 +367,91 @@
         </header>
 
         <section class="diagram-section">
-            <h2>Architecture</h2>
+            <h2>Deployment Architecture</h2>
+            <div class="diagram-wrapper">
+                <svg viewBox="0 0 880 440" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <marker id="ah-conn" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                            <polygon points="0 0, 7 2.5, 0 5" fill="var(--text-secondary)" />
+                        </marker>
+                        <marker id="ah-dash" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                            <polygon points="0 0, 7 2.5, 0 5" fill="var(--text-muted)" />
+                        </marker>
+                    </defs>
+
+                    <!-- ── Kubernetes Cluster ── -->
+                    <rect class="cluster" x="8" y="28" width="864" height="404" rx="10" />
+                    <text class="cluster-label" x="440" y="18" text-anchor="middle">KUBERNETES CLUSTER</text>
+
+                    <!-- ══ Top row: Workload Pods ══ -->
+
+                    <!-- Client Pod -->
+                    <rect class="pod" x="20" y="48" width="260" height="132" rx="6" />
+                    <text class="pod-title" x="150" y="72" text-anchor="middle">Client</text>
+                    <text class="pod-type" x="150" y="88" text-anchor="middle">Deployment</text>
+                    <rect class="sidecar" x="32" y="100" width="236" height="68" rx="4" />
+                    <text class="sidecar-label" x="150" y="120" text-anchor="middle">spiffe-helper</text>
+                    <text class="sidecar-label" x="150" y="134" text-anchor="middle">(sidecar)</text>
+                    <text class="socket-label" x="150" y="158" text-anchor="middle">svid.pem · svid_key.pem · bundle.pem</text>
+
+                    <!-- Server Pod -->
+                    <rect class="pod" x="305" y="48" width="260" height="132" rx="6" />
+                    <text class="pod-title" x="435" y="72" text-anchor="middle">Server</text>
+                    <text class="pod-type" x="435" y="88" text-anchor="middle">Deployment</text>
+                    <rect class="sidecar" x="317" y="100" width="236" height="68" rx="4" />
+                    <text class="sidecar-label" x="435" y="120" text-anchor="middle">spiffe-helper</text>
+                    <text class="sidecar-label" x="435" y="134" text-anchor="middle">(sidecar)</text>
+                    <text class="socket-label" x="435" y="158" text-anchor="middle">svid.pem · svid_key.pem · bundle.pem</text>
+
+                    <!-- Keycloak Pod -->
+                    <rect class="pod" x="590" y="48" width="268" height="132" rx="6" />
+                    <text class="pod-title" x="724" y="72" text-anchor="middle">Keycloak</text>
+                    <text class="pod-type" x="724" y="88" text-anchor="middle">StatefulSet</text>
+                    <rect class="sidecar" x="602" y="100" width="244" height="68" rx="4" />
+                    <text class="sidecar-label" x="724" y="120" text-anchor="middle">spiffe-helper</text>
+                    <text class="sidecar-label" x="724" y="134" text-anchor="middle">(sidecar)</text>
+                    <text class="socket-label" x="724" y="158" text-anchor="middle">svid.pem · svid_key.pem · bundle.pem</text>
+
+                    <!-- ── Agent Socket annotation ── -->
+                    <rect class="socket-box" x="310" y="200" width="260" height="28" rx="4" />
+                    <text class="socket-label" x="440" y="218" text-anchor="middle">agent.sock (hostPath volume)</text>
+
+                    <!-- ── Arrows: Sidecars → Agent Socket ── -->
+                    <line class="conn" x1="150" y1="168" x2="370" y2="200" marker-end="url(#ah-conn)" />
+                    <line class="conn" x1="435" y1="168" x2="440" y2="200" marker-end="url(#ah-conn)" />
+                    <line class="conn" x1="724" y1="168" x2="510" y2="200" marker-end="url(#ah-conn)" />
+                    <text class="conn-label" x="440" y="195" text-anchor="middle">Workload API</text>
+
+                    <!-- ══ SPIRE Agent ══ -->
+                    <rect class="pod" x="240" y="258" width="400" height="58" rx="6" />
+                    <text class="pod-title" x="440" y="282" text-anchor="middle">SPIRE Agent</text>
+                    <text class="pod-type" x="440" y="298" text-anchor="middle">DaemonSet — per node</text>
+
+                    <!-- Arrow: Agent Socket → SPIRE Agent -->
+                    <line class="conn" x1="440" y1="228" x2="440" y2="258" marker-end="url(#ah-conn)" />
+
+                    <!-- ══ SPIRE Server ══ -->
+                    <rect class="pod" x="240" y="348" width="400" height="76" rx="6" />
+                    <text class="pod-title" x="440" y="372" text-anchor="middle">SPIRE Server</text>
+                    <text class="pod-type" x="440" y="388" text-anchor="middle">StatefulSet</text>
+                    <rect class="sidecar" x="310" y="396" width="260" height="20" rx="3" />
+                    <text class="sidecar-label" x="440" y="410" text-anchor="middle">oidc-discovery-provider (sidecar)</text>
+
+                    <!-- Arrow: SPIRE Agent → SPIRE Server (gRPC) -->
+                    <line class="conn" x1="440" y1="316" x2="440" y2="348" marker-end="url(#ah-conn)" />
+                    <text class="conn-label" x="454" y="336" text-anchor="start">gRPC</text>
+
+                    <!-- Dashed: Keycloak → oidc-discovery-provider /keys -->
+                    <path d="M 724 180 L 724 406 L 578 406"
+                          stroke="var(--text-muted)" stroke-width="1.2" stroke-dasharray="5 3"
+                          fill="none" marker-end="url(#ah-dash)" />
+                    <text class="conn-label" x="730" y="300" text-anchor="start">TLS · GET /keys (JWKS)</text>
+                </svg>
+            </div>
+        </section>
+
+        <section class="diagram-section">
+            <h2>Sequence</h2>
             <div class="diagram-wrapper">
                 <svg viewBox="0 0 880 560" xmlns="http://www.w3.org/2000/svg">
                     <defs>

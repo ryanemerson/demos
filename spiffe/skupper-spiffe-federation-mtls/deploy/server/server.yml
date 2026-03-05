@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: server
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hello-server
+  namespace: server
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spiffe-helper-config
+  namespace: server
+data:
+  helper.conf: |
+    agent_address = "/run/spire/sockets/agent.sock"
+    cert_dir = "/opt/spiffe-certs"
+    daemon_mode = true
+
+    health_checks {
+      listener_enabled = true
+    }
+
+    svid_file_name = "svid.pem"
+    svid_key_file_name = "svid_key.pem"
+    svid_bundle_file_name = "bundle.pem"
+    # This is potentially problematic and is something we should investigate further
+    # https://github.com/spiffe/spiffe-helper/issues/217
+    # https://github.com/spiffe/spiffe/issues/375
+    include_federated_domains = true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-server
+  namespace: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-server
+  template:
+    metadata:
+      labels:
+        app: hello-server
+    spec:
+      serviceAccountName: hello-server
+      initContainers:
+      # Sidecar to continuously fetch and update the X.509 SVID and trust bundle via the Workload API.
+      # Writes: svid.pem (cert chain), svid_key.pem (private key), bundle.pem (trust bundle).
+      - name: spiffe-helper
+        image: ghcr.io/spiffe/spiffe-helper:0.11.0
+        args: ["-config", "/opt/spiffe-helper/helper.conf"]
+        # Continue to execute as a sidecar
+        restartPolicy: Always
+        securityContext:
+          runAsUser: 185
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8081
+        volumeMounts:
+        - name: spire-agent-socket
+          mountPath: /run/spire/sockets
+        - name: spiffe-certs
+          mountPath: /opt/spiffe-certs
+        - name: spiffe-helper-config
+          mountPath: /opt/spiffe-helper
+      containers:
+      - name: hello-server
+        image: quay.io/remerson/hello-server:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8443
+#        env:
+#        - name: JAVA_OPTS_APPEND
+#          value: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -Djavax.net.debug=ssl:handshake"
+        volumeMounts:
+        - name: spiffe-certs
+          mountPath: /opt/spiffe-certs
+      volumes:
+      - name: spire-agent-socket
+        hostPath:
+          path: /run/spire/socket
+          type: DirectoryOrCreate
+      - name: spiffe-certs
+        emptyDir: {}
+      - name: spiffe-helper-config
+        configMap:
+          name: spiffe-helper-config

@@ -1,0 +1,22 @@
+apiVersion: operator.openshift.io/v1alpha1
+kind: SpireServer
+metadata:
+  name: cluster
+  namespace: spire
+spec:
+  jwtIssuer: https://spire-private.spire.svc.cluster.local
+  caSubject:
+    country: US
+    organization: SPIFFE
+  caValidity: 12h
+  defaultX509Validity: 1h
+  persistence:
+    accessMode: ReadWriteOnce
+    size: 1Gi
+  datastore:
+    databaseType: sqlite3
+    connectionString: /run/spire/data/datastore.sqlite3
+  federation:
+    bundleEndpoint:
+      profile: https_spiffe
+    managedRoute: "false"

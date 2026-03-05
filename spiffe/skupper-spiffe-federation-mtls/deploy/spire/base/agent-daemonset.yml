@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: spire-agent
+  namespace: spire
+spec:
+  selector:
+    matchLabels:
+      app: spire-agent
+  template:
+    metadata:
+      labels:
+        app: spire-agent
+    spec:
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      serviceAccountName: spire-agent
+      containers:
+      - name: spire-agent
+        image: ghcr.io/spiffe/spire-agent
+        args: ["-config", "/run/spire/config/agent.conf"]
+        env:
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        volumeMounts:
+        - name: spire-agent-config
+          mountPath: /run/spire/config
+          readOnly: true
+        - name: spire-agent-socket-dir
+          mountPath: /run/spire/sockets
+        - name: spire-agent-data
+          mountPath: /run/spire/agent
+        - name: spire-agent-token
+          mountPath: /var/run/secrets/tokens
+          readOnly: true
+        readinessProbe:
+          exec:
+            command:
+            - /opt/spire/bin/spire-agent
+            - healthcheck
+            - -socketPath
+            - /run/spire/sockets/agent.sock
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: spire-agent-config
+        configMap:
+          name: spire-agent-config
+      - name: spire-agent-socket-dir
+        hostPath:
+          # Unique per-namespace path prevents socket conflicts on the shared minikube node
+          path: /run/spire/socket
+          type: DirectoryOrCreate
+      - name: spire-agent-data
+        emptyDir: {}
+      - name: spire-agent-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: spire-agent
+              expirationSeconds: 7200
+              audience: spire-server

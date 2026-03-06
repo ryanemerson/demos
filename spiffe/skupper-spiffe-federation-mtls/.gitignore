@@ -45,5 +45,5 @@ nb-configuration.xml
 node*.log
 **/*.token
 **/*.pem
-./deploy/.logs/
-./deploy/.tmp/
+deploy/.logs/
+deploy/.tmp/

@@ -43,7 +43,7 @@ data:
       server_address = "spire-server.spire.svc.cluster.local"
       server_port = "8081"
       socket_path = "/run/spire/sockets/agent.sock"
-      trust_domain = "demo.example.com"
+      trust_domain = "public.demo.example.com"
       insecure_bootstrap = true
     }
     plugins {

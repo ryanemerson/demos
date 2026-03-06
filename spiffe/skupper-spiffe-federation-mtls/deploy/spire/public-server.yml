@@ -42,17 +42,29 @@ data:
       bind_address = "0.0.0.0"
       bind_port = "8081"
       socket_path = "/tmp/spire-server/private/api.sock"
-      trust_domain = "demo.example.com"
+      trust_domain = "public.demo.example.com"
       data_dir = "/run/spire/data"
       log_level = "INFO"
       ca_ttl = "12h"
       default_x509_svid_ttl = "1h"
-      jwt_issuer = "spire-server.spire.svc.cluster.local"
+      jwt_issuer = "spire-public.spire.svc.cluster.local"
       ca_key_type = "rsa-2048"
       ca_subject = {
         country = ["US"],
         organization = ["SPIFFE"],
         common_name = "",
+      }
+      federation {
+        bundle_endpoint {
+            address = "0.0.0.0"
+            port = 8443
+        }
+        federates_with "private.demo.example" {
+            bundle_endpoint_url = "https://spire-private:443"
+            bundle_endpoint_profile "https_spiffe" {
+                endpoint_spiffe_id = "spiffe://private.demo.example.com/spire/server"
+            }
+        }
       }
     }
     plugins {
@@ -80,27 +92,6 @@ data:
     }
 ---
 apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: oidc-discovery-provider
-  namespace: spire
-data:
-  oidc-discovery-provider.conf: |
-    log_level = "INFO"
-    # Localhost to allow debugging with Kubectl port-forward
-    domains = ["spire-server.spire.svc.cluster.local","localhost"]
-    serving_cert_file {
-      addr = ":443"
-      cert_file_path = "/etc/tls-certs/tls.crt"
-      key_file_path = "/etc/tls-certs/tls.key"
-    }
-    server_api {
-      address = "unix:///tmp/spire-server/private/api.sock"
-    }
-    # TODO
-    health_checks {}
----
-apiVersion: v1
 kind: Service
 metadata:
   name: spire-server
@@ -114,7 +105,7 @@ spec:
     targetPort: 8081
   - name: https
     port: 443
-    targetPort: 443
+    targetPort: 8443
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -139,6 +130,7 @@ spec:
         args: ["-config", "/run/spire/config/server.conf"]
         ports:
         - containerPort: 8081
+        - containerPort: 8443
         volumeMounts:
         - name: spire-server-config
           mountPath: /run/spire/config
@@ -157,45 +149,10 @@ spec:
             - /tmp/spire-server/private/api.sock
           initialDelaySeconds: 5
           periodSeconds: 5
-      - name: spire-oidc
-        image: ${SPIRE_OIDC_DISCOVERY_IMAGE}
-        args:
-          - -config
-          - /run/spire/oidc/config/oidc-discovery-provider.conf
-        ports:
-          - containerPort: 443
-        volumeMounts:
-          - name: spire-server-socket
-            mountPath: /tmp/spire-server/private
-            readOnly: true
-          - name: spire-oidc-config
-            mountPath: /run/spire/oidc/config/
-            readOnly: true
-          - name: oidc-discovery-certs
-            mountPath: /etc/tls-certs
-          - name: spire-agent-socket
-            mountPath: /run/spire/sockets
-          - name: spire-data
-            mountPath: /run/spire/data
-            readOnly: false
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: 8008
-          failureThreshold: 5
-          initialDelaySeconds: 5
-          periodSeconds: 5
-          timeoutSeconds: 3
       volumes:
       - name: spire-server-config
         configMap:
           name: spire-server-config
-      - name: spire-oidc-config
-        configMap:
-          name: oidc-discovery-provider
-      - name: oidc-discovery-certs
-        secret:
-          secretName: oidc-discovery-certs
       - name: spire-agent-socket
         hostPath:
           path: /run/spire/socket

@@ -83,3 +83,9 @@ sudo iptables -C DOCKER-USER -d ${SERVICE_CIDRS[public]} -j ACCEPT 2>/dev/null \
 sudo iptables -C DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null \
     || sudo iptables -I DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 echo "Cross-cluster routing configured (private -> public only)."
+
+export KUBECONFIG=$HOME/.kube/public
+minikube -p public update-context
+
+export KUBECONFIG=$HOME/.kube/private
+minikube -p private update-context

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPIFFE + Keycloak Zero Trust</title>
+    <title>SPIFFE + Skupper Federated Zero Trust</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -347,6 +347,8 @@
         .diagram-wrapper svg .socket-label { fill: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: 9px; }
         .diagram-wrapper svg .conn { stroke: var(--text-secondary); fill: none; stroke-width: 1.2; }
         .diagram-wrapper svg .conn-label { fill: var(--text-secondary); font-family: 'IBM Plex Mono', monospace; font-size: 9px; }
+        .diagram-wrapper svg .skupper-link { stroke: var(--accent); fill: none; stroke-width: 2; stroke-dasharray: 10 4; }
+        .diagram-wrapper svg .skupper-label { fill: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; }
 
         /* Tabs */
         .tab-bar {
@@ -424,100 +426,120 @@
                     <span id="theme-label">Light</span>
                 </button>
             </div>
-            <h1>SPIFFE + Keycloak</h1>
+            <h1>SPIFFE + Skupper Federated Trust</h1>
             <p class="subtitle">
-                Test role-based access control enforced by Bearer tokens issued via SPIFFE federation.
-                Each action calls the hello-server over mTLS with different authorization contexts.
+                Cross-cluster mTLS using federated SPIFFE identities with Skupper providing the network link between two independent Kubernetes clusters.
             </p>
         </header>
 
         <div class="tab-bar">
             <button class="tab active" onclick="switchTab('architecture')">Architecture</button>
             <button class="tab" onclick="switchTab('mtls')">mTLS</button>
-            <button class="tab" onclick="switchTab('authz')">Authz</button>
             <button class="tab" onclick="switchTab('demo')">Demo</button>
         </div>
 
         <div class="tab-panel active" id="tab-architecture">
             <div class="tab-content">
                 <div class="diagram-wrapper">
-                <svg viewBox="0 0 880 440" xmlns="http://www.w3.org/2000/svg">
+                <svg viewBox="0 0 960 440" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                         <marker id="ah-conn" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
                             <polygon points="0 0, 7 2.5, 0 5" fill="var(--text-secondary)" />
                         </marker>
-                        <marker id="ah-dash" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
-                            <polygon points="0 0, 7 2.5, 0 5" fill="var(--text-muted)" />
+                        <marker id="ah-conn-accent" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                            <polygon points="0 0, 7 2.5, 0 5" fill="var(--accent)" />
                         </marker>
                     </defs>
 
-                    <!-- ── Kubernetes Cluster ── -->
-                    <rect class="cluster" x="8" y="28" width="864" height="404" rx="10" />
-                    <text class="cluster-label" x="440" y="18" text-anchor="middle">KUBERNETES CLUSTER</text>
+                    <!-- ── Skupper Link vertical boundary ── -->
+                    <line stroke="var(--accent)" stroke-dasharray="3 5" stroke-width="0.75" opacity="0.35" x1="480" y1="28" x2="480" y2="416" />
+                    <text class="skupper-label" x="480" y="434" text-anchor="middle">Skupper Link</text>
 
-                    <!-- ══ Top row: Workload Pods ══ -->
+                    <!-- ── Public Cluster (left) ── -->
+                    <rect class="cluster" x="8" y="28" width="418" height="388" rx="10" />
+                    <text class="cluster-label" x="217" y="18" text-anchor="middle">PUBLIC CLUSTER</text>
+                    <text class="socket-label" x="217" y="44" text-anchor="middle">trust domain: public.demo.example.com</text>
 
                     <!-- Client Pod -->
-                    <rect class="pod" x="20" y="48" width="260" height="132" rx="6" />
-                    <text class="pod-title" x="150" y="72" text-anchor="middle">Client</text>
-                    <text class="pod-type" x="150" y="88" text-anchor="middle">Deployment</text>
-                    <rect class="sidecar" x="32" y="100" width="236" height="68" rx="4" />
-                    <text class="sidecar-label" x="150" y="120" text-anchor="middle">spiffe-helper</text>
-                    <text class="sidecar-label" x="150" y="134" text-anchor="middle">(sidecar)</text>
-                    <text class="socket-label" x="150" y="158" text-anchor="middle">svid.pem · svid_key.pem · bundle.pem</text>
+                    <rect class="pod" x="24" y="60" width="386" height="100" rx="6" />
+                    <text class="pod-title" x="217" y="82" text-anchor="middle">hello-client</text>
+                    <text class="pod-type" x="217" y="96" text-anchor="middle">Deployment &middot; ns: client</text>
+                    <rect class="sidecar" x="36" y="106" width="362" height="42" rx="4" />
+                    <text class="sidecar-label" x="217" y="124" text-anchor="middle">spiffe-helper (sidecar)</text>
+                    <text class="socket-label" x="217" y="140" text-anchor="middle">svid.pem &middot; svid_key.pem &middot; bundle.pem</text>
+
+                    <!-- Agent Socket -->
+                    <rect class="socket-box" x="104" y="198" width="226" height="24" rx="4" />
+                    <text class="socket-label" x="217" y="214" text-anchor="middle">agent.sock (hostPath)</text>
+
+                    <!-- Arrow: sidecar -> socket -->
+                    <line class="conn" x1="217" y1="160" x2="217" y2="198" marker-end="url(#ah-conn)" />
+                    <text class="conn-label" x="230" y="184" text-anchor="start">Workload API</text>
+
+                    <!-- SPIRE Agent -->
+                    <rect class="pod" x="64" y="240" width="306" height="48" rx="6" />
+                    <text class="pod-title" x="217" y="262" text-anchor="middle">SPIRE Agent</text>
+                    <text class="pod-type" x="217" y="276" text-anchor="middle">DaemonSet &middot; ns: spire</text>
+
+                    <!-- Arrow: socket -> agent -->
+                    <line class="conn" x1="217" y1="222" x2="217" y2="240" marker-end="url(#ah-conn)" />
+
+                    <!-- SPIRE Server -->
+                    <rect class="pod" x="64" y="310" width="306" height="48" rx="6" />
+                    <text class="pod-title" x="217" y="332" text-anchor="middle">SPIRE Server</text>
+                    <text class="pod-type" x="217" y="348" text-anchor="middle">StatefulSet &middot; ns: spire</text>
+
+                    <!-- Arrow: agent -> server -->
+                    <line class="conn" x1="217" y1="288" x2="217" y2="310" marker-end="url(#ah-conn)" />
+                    <text class="conn-label" x="230" y="304" text-anchor="start">gRPC</text>
+
+                    <!-- ── Private Cluster (right) ── -->
+                    <rect class="cluster" x="534" y="28" width="418" height="388" rx="10" />
+                    <text class="cluster-label" x="743" y="18" text-anchor="middle">PRIVATE CLUSTER</text>
+                    <text class="socket-label" x="743" y="44" text-anchor="middle">trust domain: private.demo.example.com</text>
 
                     <!-- Server Pod -->
-                    <rect class="pod" x="305" y="48" width="260" height="132" rx="6" />
-                    <text class="pod-title" x="435" y="72" text-anchor="middle">Server</text>
-                    <text class="pod-type" x="435" y="88" text-anchor="middle">Deployment</text>
-                    <rect class="sidecar" x="317" y="100" width="236" height="68" rx="4" />
-                    <text class="sidecar-label" x="435" y="120" text-anchor="middle">spiffe-helper</text>
-                    <text class="sidecar-label" x="435" y="134" text-anchor="middle">(sidecar)</text>
-                    <text class="socket-label" x="435" y="158" text-anchor="middle">svid.pem · svid_key.pem · bundle.pem</text>
+                    <rect class="pod" x="550" y="60" width="386" height="100" rx="6" />
+                    <text class="pod-title" x="743" y="82" text-anchor="middle">hello-server</text>
+                    <text class="pod-type" x="743" y="96" text-anchor="middle">Deployment &middot; ns: server</text>
+                    <rect class="sidecar" x="562" y="106" width="362" height="42" rx="4" />
+                    <text class="sidecar-label" x="743" y="124" text-anchor="middle">spiffe-helper (sidecar)</text>
+                    <text class="socket-label" x="743" y="140" text-anchor="middle">svid.pem &middot; svid_key.pem &middot; bundle.pem</text>
 
-                    <!-- Keycloak Pod -->
-                    <rect class="pod" x="590" y="48" width="268" height="132" rx="6" />
-                    <text class="pod-title" x="724" y="72" text-anchor="middle">Keycloak</text>
-                    <text class="pod-type" x="724" y="88" text-anchor="middle">StatefulSet</text>
-                    <rect class="sidecar" x="602" y="100" width="244" height="68" rx="4" />
-                    <text class="sidecar-label" x="724" y="120" text-anchor="middle">spiffe-helper</text>
-                    <text class="sidecar-label" x="724" y="134" text-anchor="middle">(sidecar)</text>
-                    <text class="socket-label" x="724" y="158" text-anchor="middle">svid.pem · svid_key.pem · bundle.pem</text>
+                    <!-- Agent Socket -->
+                    <rect class="socket-box" x="630" y="198" width="226" height="24" rx="4" />
+                    <text class="socket-label" x="743" y="214" text-anchor="middle">agent.sock (hostPath)</text>
 
-                    <!-- ── Agent Socket annotation ── -->
-                    <rect class="socket-box" x="310" y="200" width="260" height="28" rx="4" />
-                    <text class="socket-label" x="440" y="218" text-anchor="middle">agent.sock (hostPath volume)</text>
+                    <!-- Arrow: sidecar -> socket -->
+                    <line class="conn" x1="743" y1="160" x2="743" y2="198" marker-end="url(#ah-conn)" />
+                    <text class="conn-label" x="756" y="184" text-anchor="start">Workload API</text>
 
-                    <!-- ── Arrows: Sidecars → Agent Socket ── -->
-                    <line class="conn" x1="150" y1="168" x2="370" y2="200" marker-end="url(#ah-conn)" />
-                    <line class="conn" x1="435" y1="168" x2="440" y2="200" marker-end="url(#ah-conn)" />
-                    <line class="conn" x1="724" y1="168" x2="510" y2="200" marker-end="url(#ah-conn)" />
-                    <text class="conn-label" x="440" y="195" text-anchor="middle">Workload API</text>
+                    <!-- SPIRE Agent -->
+                    <rect class="pod" x="590" y="240" width="306" height="48" rx="6" />
+                    <text class="pod-title" x="743" y="262" text-anchor="middle">SPIRE Agent</text>
+                    <text class="pod-type" x="743" y="276" text-anchor="middle">DaemonSet &middot; ns: spire</text>
 
-                    <!-- ══ SPIRE Agent ══ -->
-                    <rect class="pod" x="240" y="258" width="400" height="58" rx="6" />
-                    <text class="pod-title" x="440" y="282" text-anchor="middle">SPIRE Agent</text>
-                    <text class="pod-type" x="440" y="298" text-anchor="middle">DaemonSet — per node</text>
+                    <!-- Arrow: socket -> agent -->
+                    <line class="conn" x1="743" y1="222" x2="743" y2="240" marker-end="url(#ah-conn)" />
 
-                    <!-- Arrow: Agent Socket → SPIRE Agent -->
-                    <line class="conn" x1="440" y1="228" x2="440" y2="258" marker-end="url(#ah-conn)" />
+                    <!-- SPIRE Server -->
+                    <rect class="pod" x="590" y="310" width="306" height="48" rx="6" />
+                    <text class="pod-title" x="743" y="332" text-anchor="middle">SPIRE Server</text>
+                    <text class="pod-type" x="743" y="348" text-anchor="middle">StatefulSet &middot; ns: spire</text>
 
-                    <!-- ══ SPIRE Server ══ -->
-                    <rect class="pod" x="240" y="348" width="400" height="76" rx="6" />
-                    <text class="pod-title" x="440" y="372" text-anchor="middle">SPIRE Server</text>
-                    <text class="pod-type" x="440" y="388" text-anchor="middle">StatefulSet</text>
-                    <rect class="sidecar" x="310" y="396" width="260" height="20" rx="3" />
-                    <text class="sidecar-label" x="440" y="410" text-anchor="middle">oidc-discovery-provider (sidecar)</text>
+                    <!-- Arrow: agent -> server -->
+                    <line class="conn" x1="743" y1="288" x2="743" y2="310" marker-end="url(#ah-conn)" />
+                    <text class="conn-label" x="756" y="304" text-anchor="start">gRPC</text>
 
-                    <!-- Arrow: SPIRE Agent → SPIRE Server (gRPC) -->
-                    <line class="conn" x1="440" y1="316" x2="440" y2="348" marker-end="url(#ah-conn)" />
-                    <text class="conn-label" x="454" y="336" text-anchor="start">gRPC</text>
+                    <!-- ═══ Cross-cluster connections (crossing Skupper Link) ═══ -->
 
-                    <!-- Dashed: Keycloak → oidc-discovery-provider /keys -->
-                    <path d="M 724 180 L 724 406 L 578 406"
-                          stroke="var(--text-muted)" stroke-width="1.2" stroke-dasharray="5 3"
-                          fill="none" marker-end="url(#ah-dash)" />
-                    <text class="conn-label" x="730" y="300" text-anchor="start">TLS · GET /keys (JWKS)</text>
+                    <!-- Client -> Server (mTLS workload traffic, from right edge to left edge) -->
+                    <line class="msg" x1="410" y1="90" x2="550" y2="90" marker-end="url(#ah-conn-accent)" />
+                    <text class="msg-protocol" x="480" y="84" text-anchor="middle">mTLS</text>
+
+                    <!-- SPIRE Server <-> SPIRE Server (federated bundle exchange) -->
+                    <line class="msg" x1="370" y1="334" x2="590" y2="334" marker-end="url(#ah-conn-accent)" />
+                    <text class="conn-label" x="480" y="360" text-anchor="middle">federated bundle exchange</text>
                 </svg>
                 </div>
             </div>
@@ -526,7 +548,7 @@
         <div class="tab-panel" id="tab-mtls">
             <div class="tab-content">
                 <div class="diagram-wrapper">
-                <svg viewBox="0 0 520 260" xmlns="http://www.w3.org/2000/svg">
+                <svg viewBox="0 0 580 280" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                         <marker id="ah-mtls" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
                             <polygon points="0 0, 8 3, 0 6" fill="var(--accent)" />
@@ -543,148 +565,38 @@
 
                     <rect class="box" x="195" y="8" width="140" height="48" rx="6" stroke-width="1" />
                     <text class="box-title" x="265" y="30" text-anchor="middle">Client</text>
-                    <text class="box-sub" x="265" y="44" text-anchor="middle">hello-client</text>
+                    <text class="box-sub" x="265" y="44" text-anchor="middle">public cluster</text>
 
-                    <rect class="box" x="375" y="8" width="140" height="48" rx="6" stroke-width="1" />
-                    <text class="box-title" x="445" y="30" text-anchor="middle">Server</text>
-                    <text class="box-sub" x="445" y="44" text-anchor="middle">hello-server</text>
-
-                    <!-- ── Lifelines ── -->
-                    <line class="lifeline" x1="85"  y1="56" x2="85"  y2="250" />
-                    <line class="lifeline" x1="265" y1="56" x2="265" y2="250" />
-                    <line class="lifeline" x1="445" y1="56" x2="445" y2="250" />
-
-                    <!-- 1. Browser → Client  (TLS: Request action) -->
-                    <line class="msg" x1="85" y1="90" x2="257" y2="90" marker-end="url(#ah-mtls)" />
-                    <text class="msg-protocol" x="175" y="82" text-anchor="middle">TLS</text>
-                    <text class="msg-label" x="175" y="106" text-anchor="middle">Request action</text>
-
-                    <!-- 2. Client → Server  (mTLS) -->
-                    <line class="msg" x1="265" y1="135" x2="437" y2="135" marker-end="url(#ah-mtls)" />
-                    <text class="msg-protocol" x="355" y="127" text-anchor="middle">mTLS</text>
-                    <text class="msg-label" x="355" y="151" text-anchor="middle">/hello/{name}</text>
-
-                    <!-- 3. Server → Client  (return: response) -->
-                    <line class="msg-ret" x1="445" y1="180" x2="273" y2="180" marker-end="url(#ah-mtls-ret)" />
-                    <text class="msg-label" x="355" y="176" text-anchor="middle">200: Hello, {name}!</text>
-
-                    <!-- 4. Client → Browser  (return: response) -->
-                    <line class="msg-ret" x1="265" y1="220" x2="93" y2="220" marker-end="url(#ah-mtls-ret)" />
-                    <text class="msg-label" x="175" y="216" text-anchor="middle">Response</text>
-                </svg>
-                </div>
-            </div>
-        </div>
-
-        <div class="tab-panel" id="tab-authz">
-            <div class="tab-content">
-                <div class="diagram-wrapper">
-                <svg viewBox="0 0 880 605" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <marker id="ah" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-                            <polygon points="0 0, 8 3, 0 6" fill="var(--accent)" />
-                        </marker>
-                        <marker id="ah-ret" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-                            <polygon points="0 0, 8 3, 0 6" fill="var(--text-muted)" />
-                        </marker>
-                    </defs>
-
-                    <!-- ── Participant headers ── -->
-                    <rect class="box" x="15" y="8" width="140" height="48" rx="6" stroke-width="1" />
-                    <text class="box-title" x="85" y="30" text-anchor="middle">Browser</text>
-                    <text class="box-sub" x="85" y="44" text-anchor="middle">User</text>
-
-                    <rect class="box" x="195" y="8" width="140" height="48" rx="6" stroke-width="1" />
-                    <text class="box-title" x="265" y="30" text-anchor="middle">Client</text>
-                    <text class="box-sub" x="265" y="44" text-anchor="middle">hello-client</text>
-
-                    <rect class="box" x="375" y="8" width="140" height="48" rx="6" stroke-width="1" />
-                    <text class="box-title" x="445" y="30" text-anchor="middle">Server</text>
-                    <text class="box-sub" x="445" y="44" text-anchor="middle">hello-server</text>
-
-                    <rect class="box" x="555" y="8" width="140" height="48" rx="6" stroke-width="1" />
-                    <text class="box-title" x="625" y="30" text-anchor="middle">Keycloak</text>
-                    <text class="box-sub" x="625" y="44" text-anchor="middle">Identity Provider</text>
-
-                    <rect class="box" x="735" y="8" width="140" height="48" rx="6" stroke-width="1" />
-                    <text class="box-title" x="805" y="30" text-anchor="middle">SPIRE</text>
-                    <text class="box-sub" x="805" y="44" text-anchor="middle">OIDC Discovery</text>
+                    <rect class="box" x="425" y="8" width="140" height="48" rx="6" stroke-width="1" />
+                    <text class="box-title" x="495" y="30" text-anchor="middle">Server</text>
+                    <text class="box-sub" x="495" y="44" text-anchor="middle">private cluster</text>
 
                     <!-- ── Lifelines ── -->
-                    <line class="lifeline" x1="85"  y1="56" x2="85"  y2="595" />
-                    <line class="lifeline" x1="265" y1="56" x2="265" y2="595" />
-                    <line class="lifeline" x1="445" y1="56" x2="445" y2="595" />
-                    <line class="lifeline" x1="625" y1="56" x2="625" y2="595" />
-                    <line class="lifeline" x1="805" y1="56" x2="805" y2="595" />
+                    <line class="lifeline" x1="85"  y1="56" x2="85"  y2="270" />
+                    <line class="lifeline" x1="265" y1="56" x2="265" y2="270" />
+                    <line class="lifeline" x1="495" y1="56" x2="495" y2="270" />
 
-                    <!-- ══ Phase 0: Server Startup ══ -->
+                    <!-- ── Skupper Link boundary ── -->
+                    <line stroke="var(--accent)" stroke-dasharray="3 5" stroke-width="0.75" opacity="0.35" x1="380" y1="56" x2="380" y2="262" />
+                    <text class="skupper-label" x="380" y="275" text-anchor="middle">Skupper Link</text>
 
-                    <!-- 0. Server → Keycloak  (mTLS: fetch verification keys) -->
-                    <line class="msg" x1="445" y1="90" x2="617" y2="90" marker-end="url(#ah)" />
-                    <text class="msg-protocol" x="535" y="82" text-anchor="middle">mTLS</text>
-                    <text class="msg-label" x="535" y="106" text-anchor="middle">Fetch JWKS</text>
+                    <!-- 1. Browser -> Client (TLS) -->
+                    <line class="msg" x1="85" y1="105" x2="257" y2="105" marker-end="url(#ah-mtls)" />
+                    <text class="msg-protocol" x="175" y="97" text-anchor="middle">TLS</text>
+                    <text class="msg-label" x="175" y="121" text-anchor="middle">GET /hello</text>
 
-                    <!-- 1. Keycloak → Server  (return: JWKS) -->
-                    <line class="msg-ret" x1="625" y1="128" x2="453" y2="128" marker-end="url(#ah-ret)" />
+                    <!-- 2. Client -> Server (mTLS, crossing Skupper boundary) -->
+                    <line class="msg" x1="265" y1="155" x2="487" y2="155" marker-end="url(#ah-mtls)" />
+                    <text class="msg-protocol" x="380" y="147" text-anchor="middle">mTLS</text>
+                    <text class="msg-label" x="380" y="171" text-anchor="middle">/hello/{name}</text>
 
-                    <!-- ── Phase separator ── -->
-                    <line class="sep" x1="10" y1="153" x2="870" y2="153" />
+                    <!-- 3. Server -> Client (return, crossing Skupper boundary) -->
+                    <line class="msg-ret" x1="495" y1="205" x2="273" y2="205" marker-end="url(#ah-mtls-ret)" />
+                    <text class="msg-label" x="380" y="201" text-anchor="middle">200: Hello, {name}!</text>
 
-                    <!-- ══ Phase 1: Browser Request ══ -->
-
-                    <!-- 2. Browser → Client  (TLS: Request action) -->
-                    <line class="msg" x1="85" y1="183" x2="257" y2="183" marker-end="url(#ah)" />
-                    <text class="msg-protocol" x="175" y="175" text-anchor="middle">TLS</text>
-                    <text class="msg-label" x="175" y="199" text-anchor="middle">Request action</text>
-
-                    <!-- ── Phase separator ── -->
-                    <line class="sep" x1="10" y1="218" x2="870" y2="218" />
-
-                    <!-- ══ Phase 2: Token Exchange ══ -->
-
-                    <!-- 3. Client self-loop: obtain JWT SVID -->
-                    <path class="msg" d="M 265 240 L 315 240 L 315 262 L 273 262" marker-end="url(#ah)" />
-                    <text class="msg-label" x="322" y="248" text-anchor="start">Obtain JWT-SVID</text>
-                    <text class="msg-label" x="340" y="261" text-anchor="start">(agent.sock)</text>
-
-                    <!-- 4. Client → Keycloak  (mTLS) -->
-                    <line class="msg" x1="265" y1="293" x2="617" y2="293" marker-end="url(#ah)" />
-                    <text class="msg-protocol" x="445" y="285" text-anchor="middle">mTLS</text>
-                    <text class="msg-label" x="445" y="309" text-anchor="middle">JWT-SVID (client_credentials)</text>
-
-                    <!-- 5. Keycloak → SPIRE  (TLS) -->
-                    <line class="msg" x1="625" y1="341" x2="797" y2="341" marker-end="url(#ah)" />
-                    <text class="msg-protocol" x="715" y="333" text-anchor="middle">TLS</text>
-                    <text class="msg-label" x="715" y="357" text-anchor="middle">Fetch JWKS</text>
-
-                    <!-- 6. SPIRE → Keycloak  (return) -->
-                    <line class="msg-ret" x1="805" y1="379" x2="633" y2="379" marker-end="url(#ah-ret)" />
-
-                    <!-- 7. Keycloak → Client  (return: Access Token) -->
-                    <line class="msg-ret" x1="625" y1="417" x2="273" y2="417" marker-end="url(#ah-ret)" />
-                    <text class="msg-label" x="445" y="413" text-anchor="middle">Access Token</text>
-
-                    <!-- ── Phase separator ── -->
-                    <line class="sep" x1="10" y1="442" x2="870" y2="442" />
-
-                    <!-- ══ Phase 3: API Call ══ -->
-
-                    <!-- 8. Client → Server  (mTLS + Bearer) -->
-                    <line class="msg" x1="265" y1="472" x2="437" y2="472" marker-end="url(#ah)" />
-                    <text class="msg-protocol" x="355" y="464" text-anchor="middle">mTLS</text>
-                    <text class="msg-label" x="355" y="488" text-anchor="middle">/admin + Bearer Token</text>
-
-                    <!-- 9. Server self-loop: local token validation -->
-                    <path class="msg" d="M 445 510 L 495 510 L 495 532 L 453 532" marker-end="url(#ah)" />
-                    <text class="msg-label" x="502" y="525" text-anchor="start">Validate Token (local)</text>
-
-                    <!-- 10. Server → Client  (return: response) -->
-                    <line class="msg-ret" x1="445" y1="555" x2="273" y2="555" marker-end="url(#ah-ret)" />
-                    <text class="msg-label" x="355" y="551" text-anchor="middle">200: Admin Endpoint</text>
-
-                    <!-- 11. Client → Browser  (return: response) -->
-                    <line class="msg-ret" x1="265" y1="583" x2="93" y2="583" marker-end="url(#ah-ret)" />
-                    <text class="msg-label" x="175" y="579" text-anchor="middle">Response</text>
+                    <!-- 4. Client -> Browser (return) -->
+                    <line class="msg-ret" x1="265" y1="250" x2="93" y2="250" marker-end="url(#ah-mtls-ret)" />
+                    <text class="msg-label" x="175" y="246" text-anchor="middle">Response</text>
                 </svg>
                 </div>
             </div>
@@ -717,6 +629,7 @@
             <span class="footer-tag">SPIFFE / SPIRE</span>
             <span class="footer-tag">mTLS</span>
             <span class="footer-tag">Skupper</span>
+            <span class="footer-tag">Federation</span>
         </footer>
     </div>
 

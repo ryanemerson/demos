@@ -703,19 +703,9 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td><button onclick="callEndpoint('unauthorized-hello', 'unauthorized-hello-result', this)">Unauthorized Hello</button></td>
-                        <td class="description">Calls <code>/hello</code> without a Bearer token. The server should accept the request as no Authorization required for this endpoint. Expected: <code>200</code></td>
-                        <td><span class="result" id="unauthorized-hello-result"></span></td>
-                    </tr>
-                    <tr>
-                        <td><button onclick="callEndpoint('unauthorized-admin', 'unauthorized-admin-result', this)">Unauthorized Admin</button></td>
-                        <td class="description">Calls <code>/admin</code> without a Bearer token. Expected: <code>403</code></td>
-                        <td><span class="result" id="unauthorized-admin-result"></span></td>
-                    </tr>
-                    <tr>
-                        <td><button onclick="callEndpoint('authorized-admin', 'authorized-admin-result', this)">Authorized Admin</button></td>
-                        <td class="description">Calls <code>/admin</code> with a valid Bearer token containing the <code>admin</code> role. Expected: <code>200</code></td>
-                        <td><span class="result" id="authorized-admin-result"></span></td>
+                        <td><button onclick="callEndpoint('hello', 'hello-result', this)">Hello</button></td>
+                        <td class="description">Calls <code>/hello</code>Expected: <code>200</code></td>
+                        <td><span class="result" id="hello-result"></span></td>
                     </tr>
                 </tbody>
                     </table>
@@ -725,10 +715,8 @@
 
         <footer class="footer">
             <span class="footer-tag">SPIFFE / SPIRE</span>
-            <span class="footer-tag">Keycloak</span>
             <span class="footer-tag">mTLS</span>
-            <span class="footer-tag">JWT-SVID</span>
-            <span class="footer-tag">RBAC</span>
+            <span class="footer-tag">Skupper</span>
         </footer>
     </div>
 

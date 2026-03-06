@@ -27,6 +27,10 @@ data:
     svid_file_name = "svid.pem"
     svid_key_file_name = "svid_key.pem"
     svid_bundle_file_name = "bundle.pem"
+    # This is potentially problematic and is something we should investigate further
+    # https://github.com/spiffe/spiffe-helper/issues/217
+    # https://github.com/spiffe/spiffe/issues/375
+    include_federated_domains = true
 ---
 apiVersion: apps/v1
 kind: Deployment

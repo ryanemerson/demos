@@ -4,7 +4,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 # Build Docker images directly inside minikube so they are available
 # without needing a registry. imagePullPolicy: Never is used in pod specs.
-eval $(minikube -p minikube docker-env)
+eval $(minikube -p private docker-env)
 export DOCKER_API_VERSION=1.44
 
 echo "Building quarkus-hello-server..."
@@ -12,6 +12,7 @@ cd "${SCRIPT_DIR}/../server"
 mvn clean package -DskipTests -q
 docker build -t quarkus-hello-server:latest .
 
+eval $(minikube -p public docker-env)
 echo "Building quarkus-hello-client..."
 cd "${SCRIPT_DIR}/../client"
 mvn clean package -DskipTests -q

@@ -10,19 +10,6 @@ metadata:
   namespace: server
 ---
 apiVersion: v1
-kind: Service
-metadata:
-  name: hello-server
-  namespace: server
-spec:
-  selector:
-    app: hello-server
-  ports:
-  - name: tls
-    port: 8443
-    targetPort: 8443
----
-apiVersion: v1
 kind: ConfigMap
 metadata:
   name: spiffe-helper-config
@@ -40,6 +27,10 @@ data:
     svid_file_name = "svid.pem"
     svid_key_file_name = "svid_key.pem"
     svid_bundle_file_name = "bundle.pem"
+    # This is potentially problematic and is something we should investigate further
+    # https://github.com/spiffe/spiffe-helper/issues/217
+    # https://github.com/spiffe/spiffe/issues/375
+    include_federated_domains = true
 ---
 apiVersion: apps/v1
 kind: Deployment

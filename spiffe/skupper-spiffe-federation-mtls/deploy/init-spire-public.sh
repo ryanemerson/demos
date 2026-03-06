@@ -48,20 +48,9 @@ kubectl exec -n spire spire-server-0 -- \
     -selector k8s_psat:agent_sa:spire-agent \
     -node
 
-# hello-client workload.
-kubectl exec -n spire statefulset/spire-server -c spire-server -- \
-  /opt/spire/bin/spire-server entry create \
-  -spiffeID spiffe://public.demo.example.com/hello-client \
-  -parentID spiffe://public.demo.example.com/ns/spire/sa/spire-agent \
-  -selector k8s:ns:client \
-  -selector k8s:sa:hello-client
-
 echo ""
 echo "SPIRE deployed successfully."
 echo ""
 echo "Trust domains:"
 echo "  public.demo.example.com"
-echo ""
-echo "SPIFFE IDs:"
-echo "  Client: spiffe://public.demo.example.com/hello-client"
 echo ""

@@ -48,25 +48,9 @@ kubectl exec -n spire spire-server-0 -- \
     -selector k8s_psat:agent_sa:spire-agent \
     -node
 
-# hello-server workload.
-kubectl exec -n spire statefulset/spire-server -c spire-server -- \
-  /opt/spire/bin/spire-server entry create \
-  -spiffeID spiffe://private.demo.example.com/hello-server \
-  -parentID spiffe://private.demo.example.com/ns/spire/sa/spire-agent \
-  -selector k8s:ns:server \
-  -selector k8s:sa:hello-server \
-  -dns hello-server.server.svc.cluster.local
-# TODO fix DNS to be the same as the skupper service
-# Defining a DNS hostname with -dns allows legacy clients to still connect to the server without hostname verification failing
-# Legacy clients still need to ensure that they receive updated certificates for the server when keys are rotated
-# The spiffe-helper project can be used to automatically retrieve updated certificates from the workload API
-
 echo ""
 echo "SPIRE deployed successfully."
 echo ""
 echo "Trust domains:"
 echo "  private.demo.example.com"
-echo ""
-echo "SPIFFE IDs:"
-echo "  Client: spiffe://private.demo.example.com/hello-server"
 echo ""

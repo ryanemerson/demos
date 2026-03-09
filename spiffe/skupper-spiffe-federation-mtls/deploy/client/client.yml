@@ -71,7 +71,7 @@ spec:
           mountPath: /opt/spiffe-helper
       containers:
       - name: hello-client
-        image: quarkus-hello-client:latest
+        image: quay.io/remerson/hello-client:latest
         imagePullPolicy: Never
         ports:
         - containerPort: 8443

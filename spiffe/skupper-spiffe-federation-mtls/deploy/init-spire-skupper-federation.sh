@@ -7,12 +7,12 @@ echo "--- Installing Skupper on Public Cluster ---"
 # Install Skupper controller in the spire namespace on both clusters
 export KUBECONFIG=$HOME/.kube/public
 kubectl apply -f https://skupper.io/install.yaml
-kubectl rollout status deployment/skupper-controller
+kubectl rollout status deployment/skupper-controller -n skupper
 
 echo "--- Installing Skupper on Private Cluster ---"
 export KUBECONFIG=$HOME/.kube/private
 kubectl apply -f https://skupper.io/install.yaml
-kubectl rollout status deployment/skupper-controller
+kubectl rollout status deployment/skupper-controller -n skupper
 
 echo "--- Creating Public Skupper site and Token ---"
 export KUBECONFIG=$HOME/.kube/public

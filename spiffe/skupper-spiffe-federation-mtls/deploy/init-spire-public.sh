@@ -1,12 +1,8 @@
 #!/bin/bash
 
-SPIRE_VERSION="1.9.4"
-export SPIRE_SERVER_IMAGE="ghcr.io/spiffe/spire-server:${SPIRE_VERSION}"
-export SPIRE_OIDC_DISCOVERY_IMAGE="ghcr.io/spiffe/oidc-discovery-provider:${SPIRE_VERSION}"
-export SPIRE_AGENT_IMAGE="ghcr.io/spiffe/spire-agent:${SPIRE_VERSION}"
-
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 TMP="${SCRIPT_DIR}"/.tmp
+PUBLIC_PLATFORM="${PUBLIC_PLATFORM:-minikube}"
 
 echo "--- Deploying SPIRE ---"
 
@@ -23,8 +19,11 @@ kubectl -n spire create secret tls oidc-discovery-certs \
   --cert=${TMP}/public_spiffe.pem  \
   --key=${TMP}/public_spiffe.key
 
-envsubst < "${SCRIPT_DIR}/spire/public-agent.yml" | kubectl apply -f -
-envsubst < "${SCRIPT_DIR}/spire/public-server.yml" | kubectl apply -f -
+if [ "${PUBLIC_PLATFORM}" = "openshift" ]; then
+  kubectl apply -k "${SCRIPT_DIR}/overlays/openshift/spire-public"
+else
+  kubectl apply -k "${SCRIPT_DIR}/spire/public"
+fi
 
 # ---------------------------------------------------------------------------
 # Wait for SPIRE server to be ready before starting agents

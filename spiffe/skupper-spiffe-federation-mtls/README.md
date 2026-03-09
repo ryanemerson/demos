@@ -26,9 +26,27 @@ respective SPIRE servers and verify each other using federated trust bundles.
 - Docker
 - `sudo` access (for minikube tunnel and iptables rules)
 
+## Cluster Setup
+
+`deploy-all.sh` does **not** create Kubernetes clusters — you must provision them beforehand.
+
+**Option A: minikube (default)**
+
+Use the provided script to start two minikube clusters (`public` and `private`) with tunnels
+and cross-cluster routing pre-configured:
+
+```bash
+./deploy/init-k8s.sh
+```
+
+**Option B: Bring your own clusters**
+
+If you are targeting OpenShift or any other Kubernetes distribution, provision two clusters
+yourself and ensure their kubeconfigs are available at `~/.kube/public` and `~/.kube/private`.
+
 ## Quick Start
 
-Deploy everything with a single script:
+Once your clusters are ready, deploy everything:
 
 ```bash
 ./deploy/deploy-all.sh
@@ -38,12 +56,38 @@ This runs the following steps in order:
 
 | Script | Purpose |
 |---|---|
-| `init-k8s.sh` | Start two minikube clusters (`public`, `private`), configure tunnels and cross-cluster routing |
-| `init-images.sh` | Build the Quarkus client and server Docker images inside each minikube cluster |
+| `init-images.sh` | Build the Quarkus client and server Docker images (pushed to quay.io when targeting OpenShift) |
 | `init-spire-public.sh` | Deploy SPIRE server + agent on the public cluster (`public.demo.example.com` trust domain) |
 | `init-spire-private.sh` | Deploy SPIRE server + agent on the private cluster (`private.demo.example.com` trust domain) |
 | `init-spire-skupper-federation.sh` | Install Skupper, link clusters, exchange SPIRE trust bundles, register federated workload entries |
 | `init-workloads.sh` | Deploy `hello-client` and `hello-server`, create Skupper sites and listeners for workload traffic |
+
+### Platform Variables
+
+By default all scripts target minikube. Set the following environment variables to target
+different platforms for each cluster:
+
+| Variable | Default | Description |
+|---|---|---|
+| `PUBLIC_PLATFORM` | `minikube` | Platform for the public cluster (hello-client + SPIRE public) |
+| `PRIVATE_PLATFORM` | `minikube` | Platform for the private cluster (hello-server + SPIRE private) |
+
+For example, to deploy with the public cluster on OpenShift and the private cluster on minikube:
+
+```bash
+PUBLIC_PLATFORM=openshift ./deploy/deploy-all.sh
+```
+
+Or to deploy both clusters on OpenShift:
+
+```bash
+PUBLIC_PLATFORM=openshift PRIVATE_PLATFORM=openshift ./deploy/deploy-all.sh
+```
+
+When a platform is set to `openshift`:
+- Workload images are pushed to `quay.io/remerson/hello-*` and `imagePullPolicy` is set to `Always`
+- A custom `spire` SecurityContextConstraints is created for the SPIRE agent
+- Additional SCC RoleBindings are applied for workload service accounts
 
 ## Testing
 
@@ -97,13 +141,13 @@ All cross-cluster traffic flows through the Skupper link:
 
 ## Teardown
 
-Remove all Kubernetes resources (preserves minikube clusters):
+Remove all deployed Kubernetes resources:
 
 ```bash
 ./deploy/teardown.sh
 ```
 
-Delete everything including minikube clusters:
+Teardown minikube clusters:
 
 ```bash
 ./deploy/teardown-k8s.sh

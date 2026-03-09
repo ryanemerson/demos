@@ -9,6 +9,7 @@ echo "--- Deploying SPIRE ---"
 export KUBECONFIG=$HOME/.kube/private
 
 # Create unsigned CA
+mkdir -p ${TMP}
 openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -subj "/CN=spire-private" -addext "subjectAltName=DNS:spire-private.spire.svc.cluster.local" \
   -keyout ${TMP}/private_spiffe.key \
   -out ${TMP}/private_spiffe.pem

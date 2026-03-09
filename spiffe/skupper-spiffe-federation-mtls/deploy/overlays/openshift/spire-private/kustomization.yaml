@@ -3,3 +3,10 @@ kind: Kustomization
 resources:
   - ../../../spire/private
   - scc.yml
+patches:
+  - target:
+      kind: StatefulSet
+      name: spire-server
+    patch: |
+      - op: remove
+        path: /spec/template/spec/volumes/1

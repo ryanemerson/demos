@@ -13,9 +13,7 @@ cd "${SCRIPT_DIR}/../server"
 mvn clean package -DskipTests -q
 
 if [ "${PRIVATE_PLATFORM}" = "openshift" ]; then
-  docker build -t "${SERVER_IMAGE}" .
-  echo "Pushing ${SERVER_IMAGE}..."
-  docker push "${SERVER_IMAGE}"
+  docker buildx build --platform linux/amd64,linux/arm64 -t "${SERVER_IMAGE}" --push .
 else
   # Build directly inside minikube so images are available without a registry
   eval $(minikube -p private docker-env)
@@ -23,14 +21,15 @@ else
   docker build -t "${SERVER_IMAGE}" .
 fi
 
+# Reset Docker environment so subsequent builds use the local daemon
+unset DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH DOCKER_API_VERSION
+
 echo "Building quarkus-hello-client..."
 cd "${SCRIPT_DIR}/../client"
 mvn clean package -DskipTests -q
 
 if [ "${PUBLIC_PLATFORM}" = "openshift" ]; then
-  docker build -t "${CLIENT_IMAGE}" .
-  echo "Pushing ${CLIENT_IMAGE}..."
-  docker push "${CLIENT_IMAGE}"
+  docker buildx build --platform linux/amd64,linux/arm64 -t "${CLIENT_IMAGE}" --push .
 else
   eval $(minikube -p public docker-env)
   export DOCKER_API_VERSION=1.44

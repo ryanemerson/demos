@@ -11,3 +11,11 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Always
+      - op: replace
+        path: /spec/template/spec/initContainers/0/securityContext
+        value:
+          runAsUser: 185
+          seLinuxOptions:
+            type: spc_t
+          capabilities:
+            add: ["DAC_OVERRIDE"]

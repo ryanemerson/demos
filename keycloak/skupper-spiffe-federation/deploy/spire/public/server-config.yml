@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-server-config
+  namespace: spire
+data:
+  server.conf: |
+    server {
+      bind_address = "0.0.0.0"
+      bind_port = "8081"
+      socket_path = "/tmp/spire-server/private/api.sock"
+      trust_domain = "public.demo.example.com"
+      data_dir = "/run/spire/data"
+      log_level = "INFO"
+      ca_ttl = "12h"
+      default_x509_svid_ttl = "1h"
+      jwt_issuer = "spire-public.spire.svc.cluster.local"
+      ca_key_type = "rsa-2048"
+      ca_subject = {
+        country = ["US"],
+        organization = ["SPIFFE"],
+        common_name = "",
+      }
+      federation {
+        bundle_endpoint {
+            address = "0.0.0.0"
+            port = 8443
+        }
+        federates_with "private.demo.example" {
+            bundle_endpoint_url = "https://spire-private:443"
+            bundle_endpoint_profile "https_spiffe" {
+                endpoint_spiffe_id = "spiffe://private.demo.example.com/spire/server"
+            }
+        }
+      }
+    }
+    plugins {
+      DataStore "sql" {
+        plugin_data {
+          database_type = "sqlite3"
+          connection_string = "/run/spire/data/datastore.sqlite3"
+        }
+      }
+      NodeAttestor "k8s_psat" {
+        plugin_data {
+          clusters = {
+            "minikube" = {
+              service_account_allow_list = ["spire:spire-agent"]
+              audience = ["spire-server"]
+            }
+          }
+        }
+      }
+      KeyManager "disk" {
+        plugin_data {
+          keys_path = "/run/spire/data/keys.json"
+        }
+      }
+    }

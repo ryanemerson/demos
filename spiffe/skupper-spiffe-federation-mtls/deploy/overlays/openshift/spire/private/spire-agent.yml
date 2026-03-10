@@ -1,0 +1,10 @@
+apiVersion: operator.openshift.io/v1alpha1
+kind: SpireAgent
+metadata:
+  name: cluster
+  namespace: spire
+spec:
+  nodeAttestor:
+    k8sPSATEnabled: "true"
+  workloadAttestors:
+    k8sEnabled: "true"

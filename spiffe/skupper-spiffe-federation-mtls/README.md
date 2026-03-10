@@ -85,9 +85,11 @@ PUBLIC_PLATFORM=openshift PRIVATE_PLATFORM=openshift ./deploy/deploy-all.sh
 ```
 
 When a platform is set to `openshift`:
+- SPIRE is deployed via the Zero Trust Workload Identity Manager operator (must be pre-installed via OperatorHub)
+- The SPIFFE CSI driver provides the agent socket to workloads (no hostPath or privileged SCCs required)
+- Workload registration is handled by `ClusterSPIFFEID` CRDs instead of manual `spire-server entry create`
+- Federation uses `ClusterFederatedTrustDomain` CRDs with Skupper bridging the bundle endpoints
 - Workload images are pushed to `quay.io/remerson/hello-*` and `imagePullPolicy` is set to `Always`
-- A custom `spire` SecurityContextConstraints is created for the SPIRE agent
-- Additional SCC RoleBindings are applied for workload service accounts
 
 ## Testing
 

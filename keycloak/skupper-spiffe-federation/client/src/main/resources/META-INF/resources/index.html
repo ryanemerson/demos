@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPIFFE + Keycloak Zero Trust</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --mono: 'IBM Plex Mono', monospace;
+            --sans: 'DM Sans', sans-serif;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0e1117;
+            --bg-surface: #161b22;
+            --bg-elevated: #1c2129;
+            --border: #2d333b;
+            --border-accent: #3d444d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #636c76;
+            --accent: #00d4aa;
+            --accent-dim: rgba(0, 212, 170, 0.12);
+            --accent-glow: rgba(0, 212, 170, 0.25);
+            --warning: #d4a017;
+            --danger: #f85149;
+            --code-bg: rgba(255, 255, 255, 0.06);
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f6f8fa;
+            --bg-surface: #ffffff;
+            --bg-elevated: #f0f2f5;
+            --border: #d0d7de;
+            --border-accent: #b8bfc7;
+            --text-primary: #1f2328;
+            --text-secondary: #59636e;
+            --text-muted: #818b98;
+            --accent: #00876e;
+            --accent-dim: rgba(0, 135, 110, 0.08);
+            --accent-glow: rgba(0, 135, 110, 0.15);
+            --warning: #9a6700;
+            --danger: #d1242f;
+            --code-bg: rgba(0, 0, 0, 0.05);
+        }
+
+        body {
+            font-family: var(--sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 3rem 2rem;
+            transition: background 0.25s ease, color 0.25s ease;
+        }
+
+        [data-theme="dark"] body {
+            background-image:
+                radial-gradient(ellipse at 20% 0%, rgba(0, 212, 170, 0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 100%, rgba(0, 212, 170, 0.02) 0%, transparent 50%);
+        }
+
+        [data-theme="light"] body {
+            background-image:
+                radial-gradient(ellipse at 20% 0%, rgba(0, 135, 110, 0.05) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 100%, rgba(0, 135, 110, 0.03) 0%, transparent 50%);
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-label {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-label::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--accent-glow);
+            animation: pulse 2.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--accent-glow); }
+            50% { opacity: 0.6; box-shadow: 0 0 4px var(--accent-glow); }
+        }
+
+        h1 {
+            font-family: var(--mono);
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* Table */
+        .table-wrapper {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--bg-surface);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            background: var(--bg-elevated);
+            padding: 0.85rem 1.25rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        thead th:first-child { width: 170px; }
+        thead th:nth-child(2) { width: 40%; }
+
+        tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s ease;
+        }
+
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr:hover { background: var(--bg-elevated); }
+
+        td {
+            padding: 1rem 1.25rem;
+            vertical-align: middle;
+        }
+
+        .description {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        .description code {
+            font-family: var(--mono);
+            font-size: 0.78rem;
+            background: var(--code-bg);
+            padding: 0.15em 0.45em;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        /* Buttons */
+        button {
+            font-family: var(--mono);
+            font-size: 0.78rem;
+            font-weight: 500;
+            padding: 0.55rem 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-accent);
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+            width: 100%;
+        }
+
+        button:hover {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+            color: var(--accent);
+            box-shadow: 0 0 12px rgba(0, 212, 170, 0.08);
+        }
+
+        button:active {
+            transform: scale(0.97);
+        }
+
+        button.loading {
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        /* Result cells */
+        .result {
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            min-height: 1.2em;
+            color: var(--text-muted);
+            transition: color 0.2s ease;
+            word-break: break-word;
+        }
+
+        .result.loading-state {
+            color: var(--text-muted);
+        }
+
+        .result.success {
+            color: var(--accent);
+        }
+
+        .result.client-error {
+            color: var(--warning);
+        }
+
+        .result.server-error {
+            color: var(--danger);
+        }
+
+        .result.error {
+            color: var(--danger);
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .footer-tag {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            padding: 0.35rem 0.7rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            letter-spacing: 0.03em;
+        }
+
+        /* Header row with toggle */
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Theme toggle */
+        .theme-toggle {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-accent);
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            width: auto;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Architecture diagram */
+        .diagram-section {
+            margin-bottom: 2.5rem;
+        }
+
+        .diagram-section h2 {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .diagram-wrapper {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-surface);
+            padding: 2rem 1.5rem;
+        }
+
+        .diagram-wrapper svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .diagram-wrapper svg .box { fill: var(--bg-elevated); stroke: var(--border-accent); }
+        .diagram-wrapper svg .box-title { fill: var(--text-primary); font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; }
+        .diagram-wrapper svg .box-sub { fill: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
+        .diagram-wrapper svg .lifeline { stroke: var(--border-accent); stroke-dasharray: 6 4; stroke-width: 1; }
+        .diagram-wrapper svg .msg { stroke: var(--accent); fill: none; stroke-width: 1.5; }
+        .diagram-wrapper svg .msg-ret { stroke: var(--text-muted); stroke-dasharray: 6 3; fill: none; stroke-width: 1.5; }
+        .diagram-wrapper svg .msg-protocol { fill: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; }
+        .diagram-wrapper svg .msg-label { fill: var(--text-secondary); font-family: 'DM Sans', sans-serif; font-size: 10.5px; }
+        .diagram-wrapper svg .sep { stroke: var(--border); stroke-dasharray: 3 5; stroke-width: 1; }
+
+        /* Architecture diagram */
+        .diagram-wrapper svg .cluster { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 8 4; }
+        .diagram-wrapper svg .cluster-label { fill: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; }
+        .diagram-wrapper svg .pod { fill: var(--bg-elevated); stroke: var(--border-accent); stroke-width: 1.5; }
+        .diagram-wrapper svg .pod-title { fill: var(--text-primary); font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; }
+        .diagram-wrapper svg .pod-type { fill: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; }
+        .diagram-wrapper svg .sidecar { fill: var(--accent-dim); stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 2; }
+        .diagram-wrapper svg .sidecar-label { fill: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; font-weight: 500; }
+        .diagram-wrapper svg .socket-box { fill: none; stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 3; }
+        .diagram-wrapper svg .socket-label { fill: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: 9px; }
+        .diagram-wrapper svg .conn { stroke: var(--text-secondary); fill: none; stroke-width: 1.2; }
+        .diagram-wrapper svg .conn-label { fill: var(--text-secondary); font-family: 'IBM Plex Mono', monospace; font-size: 9px; }
+        .diagram-wrapper svg .skupper-link { stroke: var(--accent); fill: none; stroke-width: 2; stroke-dasharray: 10 4; }
+        .diagram-wrapper svg .skupper-label { fill: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; }
+
+        /* Tabs */
+        .tab-bar {
+            display: flex;
+            gap: 2px;
+            margin-bottom: 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab {
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 0.65rem 1.25rem;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            width: auto;
+            position: relative;
+            bottom: -1px;
+        }
+
+        .tab:hover {
+            color: var(--text-secondary);
+            background: var(--bg-elevated);
+        }
+
+        .tab.active {
+            color: var(--accent);
+            background: var(--bg-surface);
+            border-color: var(--border);
+            border-bottom: 1px solid var(--bg-surface);
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .tab-content {
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            background: var(--bg-surface);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .tab-content .diagram-wrapper {
+            border: none;
+            border-radius: 0;
+            padding: 0.5rem 0;
+        }
+
+        .tab-content .table-wrapper {
+            border: none;
+            border-radius: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-top">
+                <div class="header-label">Zero Trust Demo</div>
+                <button class="theme-toggle" onclick="toggleTheme()">
+                    <span id="theme-icon">&#9788;</span>
+                    <span id="theme-label">Light</span>
+                </button>
+            </div>
+            <h1>SPIFFE + Keycloak Federated Trust</h1>
+            <p class="subtitle">
+                Cross-cluster mTLS with Bearer token authorization using federated SPIFFE identities, Keycloak, and Skupper providing the network link between two independent Kubernetes clusters.
+            </p>
+        </header>
+
+        <div class="tab-bar">
+            <button class="tab active" onclick="switchTab('architecture')">Architecture</button>
+            <button class="tab" onclick="switchTab('mtls')">mTLS</button>
+            <button class="tab" onclick="switchTab('authz')">Authz</button>
+            <button class="tab" onclick="switchTab('demo')">Demo</button>
+        </div>
+
+        <div class="tab-panel active" id="tab-architecture">
+            <div class="tab-content">
+                <div class="diagram-wrapper">
+                <svg viewBox="0 0 960 520" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <marker id="ah-conn" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                            <polygon points="0 0, 7 2.5, 0 5" fill="var(--text-secondary)" />
+                        </marker>
+                        <marker id="ah-conn-accent" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                            <polygon points="0 0, 7 2.5, 0 5" fill="var(--accent)" />
+                        </marker>
+                        <marker id="ah-dash" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                            <polygon points="0 0, 7 2.5, 0 5" fill="var(--text-muted)" />
+                        </marker>
+                    </defs>
+
+                    <!-- Skupper Link vertical boundary -->
+                    <line stroke="var(--accent)" stroke-dasharray="3 5" stroke-width="0.75" opacity="0.35" x1="480" y1="28" x2="480" y2="496" />
+                    <text class="skupper-label" x="480" y="514" text-anchor="middle">Skupper Link</text>
+
+                    <!-- ── Public Cluster (left) ── -->
+                    <rect class="cluster" x="8" y="28" width="418" height="468" rx="10" />
+                    <text class="cluster-label" x="217" y="18" text-anchor="middle">PUBLIC CLUSTER</text>
+                    <text class="socket-label" x="217" y="44" text-anchor="middle">trust domain: public.demo.example.com</text>
+
+                    <!-- Client Pod -->
+                    <rect class="pod" x="24" y="60" width="386" height="80" rx="6" />
+                    <text class="pod-title" x="217" y="82" text-anchor="middle">hello-client</text>
+                    <text class="pod-type" x="217" y="96" text-anchor="middle">Deployment &middot; ns: client</text>
+                    <rect class="sidecar" x="36" y="106" width="362" height="24" rx="4" />
+                    <text class="sidecar-label" x="217" y="122" text-anchor="middle">spiffe-helper (sidecar)</text>
+
+                    <!-- Keycloak Pod -->
+                    <rect class="pod" x="24" y="156" width="386" height="80" rx="6" />
+                    <text class="pod-title" x="217" y="178" text-anchor="middle">Keycloak</text>
+                    <text class="pod-type" x="217" y="192" text-anchor="middle">StatefulSet &middot; ns: keycloak</text>
+                    <rect class="sidecar" x="36" y="202" width="362" height="24" rx="4" />
+                    <text class="sidecar-label" x="217" y="218" text-anchor="middle">spiffe-helper (sidecar)</text>
+
+                    <!-- Agent Socket -->
+                    <rect class="socket-box" x="104" y="270" width="226" height="24" rx="4" />
+                    <text class="socket-label" x="217" y="286" text-anchor="middle">agent.sock (hostPath)</text>
+
+                    <!-- Arrows: sidecars -> socket -->
+                    <line class="conn" x1="150" y1="140" x2="180" y2="270" marker-end="url(#ah-conn)" />
+                    <line class="conn" x1="280" y1="226" x2="260" y2="270" marker-end="url(#ah-conn)" />
+                    <text class="conn-label" x="104" y="260" text-anchor="start">Workload API</text>
+
+                    <!-- SPIRE Agent -->
+                    <rect class="pod" x="64" y="314" width="306" height="48" rx="6" />
+                    <text class="pod-title" x="217" y="336" text-anchor="middle">SPIRE Agent</text>
+                    <text class="pod-type" x="217" y="350" text-anchor="middle">DaemonSet &middot; ns: spire</text>
+
+                    <!-- Arrow: socket -> agent -->
+                    <line class="conn" x1="217" y1="294" x2="217" y2="314" marker-end="url(#ah-conn)" />
+
+                    <!-- SPIRE Server -->
+                    <rect class="pod" x="64" y="384" width="306" height="48" rx="6" />
+                    <text class="pod-title" x="217" y="406" text-anchor="middle">SPIRE Server</text>
+                    <text class="pod-type" x="217" y="422" text-anchor="middle">StatefulSet &middot; ns: spire</text>
+
+                    <!-- Arrow: agent -> server -->
+                    <line class="conn" x1="217" y1="362" x2="217" y2="384" marker-end="url(#ah-conn)" />
+                    <text class="conn-label" x="230" y="378" text-anchor="start">gRPC</text>
+
+                    <!-- Dashed: Keycloak -> SPIRE Server (JWKS) -->
+                    <path d="M 60 196 L 44 196 L 44 406 L 64 406"
+                          stroke="var(--text-muted)" stroke-width="1.2" stroke-dasharray="5 3"
+                          fill="none" marker-end="url(#ah-dash)" />
+                    <text class="conn-label" x="38" y="310" text-anchor="end" transform="rotate(-90, 38, 310)">TLS &middot; GET /keys (JWKS)</text>
+
+                    <!-- ── Private Cluster (right) ── -->
+                    <rect class="cluster" x="534" y="28" width="418" height="468" rx="10" />
+                    <text class="cluster-label" x="743" y="18" text-anchor="middle">PRIVATE CLUSTER</text>
+                    <text class="socket-label" x="743" y="44" text-anchor="middle">trust domain: private.demo.example.com</text>
+
+                    <!-- Server Pod -->
+                    <rect class="pod" x="550" y="60" width="386" height="80" rx="6" />
+                    <text class="pod-title" x="743" y="82" text-anchor="middle">hello-server</text>
+                    <text class="pod-type" x="743" y="96" text-anchor="middle">Deployment &middot; ns: server</text>
+                    <rect class="sidecar" x="562" y="106" width="362" height="24" rx="4" />
+                    <text class="sidecar-label" x="743" y="122" text-anchor="middle">spiffe-helper (sidecar)</text>
+
+                    <!-- Agent Socket -->
+                    <rect class="socket-box" x="630" y="270" width="226" height="24" rx="4" />
+                    <text class="socket-label" x="743" y="286" text-anchor="middle">agent.sock (hostPath)</text>
+
+                    <!-- Arrow: sidecar -> socket -->
+                    <line class="conn" x1="743" y1="140" x2="743" y2="270" marker-end="url(#ah-conn)" />
+                    <text class="conn-label" x="756" y="210" text-anchor="start">Workload API</text>
+
+                    <!-- SPIRE Agent -->
+                    <rect class="pod" x="590" y="314" width="306" height="48" rx="6" />
+                    <text class="pod-title" x="743" y="336" text-anchor="middle">SPIRE Agent</text>
+                    <text class="pod-type" x="743" y="350" text-anchor="middle">DaemonSet &middot; ns: spire</text>
+
+                    <!-- Arrow: socket -> agent -->
+                    <line class="conn" x1="743" y1="294" x2="743" y2="314" marker-end="url(#ah-conn)" />
+
+                    <!-- SPIRE Server -->
+                    <rect class="pod" x="590" y="384" width="306" height="48" rx="6" />
+                    <text class="pod-title" x="743" y="406" text-anchor="middle">SPIRE Server</text>
+                    <text class="pod-type" x="743" y="422" text-anchor="middle">StatefulSet &middot; ns: spire</text>
+
+                    <!-- Arrow: agent -> server -->
+                    <line class="conn" x1="743" y1="362" x2="743" y2="384" marker-end="url(#ah-conn)" />
+                    <text class="conn-label" x="756" y="378" text-anchor="start">gRPC</text>
+
+                    <!-- ═══ Cross-cluster connections (crossing Skupper Link) ═══ -->
+
+                    <!-- Client -> Server (mTLS workload traffic) -->
+                    <line class="msg" x1="410" y1="90" x2="550" y2="90" marker-end="url(#ah-conn-accent)" />
+                    <text class="msg-protocol" x="480" y="84" text-anchor="middle">mTLS</text>
+
+                    <!-- SPIRE Server <-> SPIRE Server (federated bundle exchange) -->
+                    <line class="msg" x1="370" y1="406" x2="590" y2="406" marker-end="url(#ah-conn-accent)" />
+                    <text class="conn-label" x="480" y="440" text-anchor="middle">federated bundle exchange</text>
+                </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-panel" id="tab-mtls">
+            <div class="tab-content">
+                <div class="diagram-wrapper">
+                <svg viewBox="0 0 580 280" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <marker id="ah-mtls" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                            <polygon points="0 0, 8 3, 0 6" fill="var(--accent)" />
+                        </marker>
+                        <marker id="ah-mtls-ret" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                            <polygon points="0 0, 8 3, 0 6" fill="var(--text-muted)" />
+                        </marker>
+                    </defs>
+
+                    <!-- ── Participant headers ── -->
+                    <rect class="box" x="15" y="8" width="140" height="48" rx="6" stroke-width="1" />
+                    <text class="box-title" x="85" y="30" text-anchor="middle">Browser</text>
+                    <text class="box-sub" x="85" y="44" text-anchor="middle">User</text>
+
+                    <rect class="box" x="195" y="8" width="140" height="48" rx="6" stroke-width="1" />
+                    <text class="box-title" x="265" y="30" text-anchor="middle">Client</text>
+                    <text class="box-sub" x="265" y="44" text-anchor="middle">public cluster</text>
+
+                    <rect class="box" x="425" y="8" width="140" height="48" rx="6" stroke-width="1" />
+                    <text class="box-title" x="495" y="30" text-anchor="middle">Server</text>
+                    <text class="box-sub" x="495" y="44" text-anchor="middle">private cluster</text>
+
+                    <!-- ── Lifelines ── -->
+                    <line class="lifeline" x1="85"  y1="56" x2="85"  y2="270" />
+                    <line class="lifeline" x1="265" y1="56" x2="265" y2="270" />
+                    <line class="lifeline" x1="495" y1="56" x2="495" y2="270" />
+
+                    <!-- ── Skupper Link boundary ── -->
+                    <line stroke="var(--accent)" stroke-dasharray="3 5" stroke-width="0.75" opacity="0.35" x1="380" y1="56" x2="380" y2="262" />
+                    <text class="skupper-label" x="380" y="275" text-anchor="middle">Skupper Link</text>
+
+                    <!-- 1. Browser -> Client (TLS) -->
+                    <line class="msg" x1="85" y1="105" x2="257" y2="105" marker-end="url(#ah-mtls)" />
+                    <text class="msg-protocol" x="175" y="97" text-anchor="middle">TLS</text>
+                    <text class="msg-label" x="175" y="121" text-anchor="middle">GET /hello</text>
+
+                    <!-- 2. Client -> Server (mTLS, crossing Skupper boundary) -->
+                    <line class="msg" x1="265" y1="155" x2="487" y2="155" marker-end="url(#ah-mtls)" />
+                    <text class="msg-protocol" x="380" y="147" text-anchor="middle">mTLS</text>
+                    <text class="msg-label" x="380" y="171" text-anchor="middle">/hello/{name}</text>
+
+                    <!-- 3. Server -> Client (return, crossing Skupper boundary) -->
+                    <line class="msg-ret" x1="495" y1="205" x2="273" y2="205" marker-end="url(#ah-mtls-ret)" />
+                    <text class="msg-label" x="380" y="201" text-anchor="middle">200: Hello, {name}!</text>
+
+                    <!-- 4. Client -> Browser (return) -->
+                    <line class="msg-ret" x1="265" y1="250" x2="93" y2="250" marker-end="url(#ah-mtls-ret)" />
+                    <text class="msg-label" x="175" y="246" text-anchor="middle">Response</text>
+                </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-panel" id="tab-authz">
+            <div class="tab-content">
+                <div class="diagram-wrapper">
+                <svg viewBox="0 0 880 645" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <marker id="ah" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                            <polygon points="0 0, 8 3, 0 6" fill="var(--accent)" />
+                        </marker>
+                        <marker id="ah-ret" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                            <polygon points="0 0, 8 3, 0 6" fill="var(--text-muted)" />
+                        </marker>
+                    </defs>
+
+                    <!-- ── Participant headers ── -->
+                    <rect class="box" x="10" y="8" width="140" height="48" rx="6" stroke-width="1" />
+                    <text class="box-title" x="80" y="30" text-anchor="middle">Browser</text>
+                    <text class="box-sub" x="80" y="44" text-anchor="middle">User</text>
+
+                    <rect class="box" x="170" y="8" width="140" height="48" rx="6" stroke-width="1" />
+                    <text class="box-title" x="240" y="30" text-anchor="middle">Client</text>
+                    <text class="box-sub" x="240" y="44" text-anchor="middle">public cluster</text>
+
+                    <rect class="box" x="330" y="8" width="140" height="48" rx="6" stroke-width="1" />
+                    <text class="box-title" x="400" y="30" text-anchor="middle">Keycloak</text>
+                    <text class="box-sub" x="400" y="44" text-anchor="middle">public cluster</text>
+
+                    <rect class="box" x="570" y="8" width="140" height="48" rx="6" stroke-width="1" />
+                    <text class="box-title" x="640" y="30" text-anchor="middle">Server</text>
+                    <text class="box-sub" x="640" y="44" text-anchor="middle">private cluster</text>
+
+                    <!-- ── Lifelines ── -->
+                    <line class="lifeline" x1="80"  y1="56" x2="80"  y2="635" />
+                    <line class="lifeline" x1="240" y1="56" x2="240" y2="635" />
+                    <line class="lifeline" x1="400" y1="56" x2="400" y2="635" />
+                    <line class="lifeline" x1="640" y1="56" x2="640" y2="635" />
+
+                    <!-- ── Skupper Link boundary ── -->
+                    <line stroke="var(--accent)" stroke-dasharray="3 5" stroke-width="0.75" opacity="0.35" x1="520" y1="56" x2="520" y2="627" />
+                    <text class="skupper-label" x="520" y="643" text-anchor="middle">Skupper Link</text>
+
+                    <!-- ══ Phase 0: Server Startup ══ -->
+
+                    <!-- 0. Server -> Keycloak (mTLS: fetch verification keys) — crosses Skupper -->
+                    <line class="msg" x1="632" y1="90" x2="408" y2="90" marker-end="url(#ah)" />
+                    <text class="msg-protocol" x="520" y="82" text-anchor="middle">mTLS</text>
+                    <text class="msg-label" x="520" y="106" text-anchor="middle">Fetch JWKS</text>
+
+                    <!-- 1. Keycloak -> Server (return: JWKS) — crosses Skupper -->
+                    <line class="msg-ret" x1="400" y1="128" x2="632" y2="128" marker-end="url(#ah-ret)" />
+
+                    <!-- ── Phase separator ── -->
+                    <line class="sep" x1="10" y1="153" x2="870" y2="153" />
+
+                    <!-- ══ Phase 1: Browser Request ══ -->
+
+                    <!-- 2. Browser -> Client (TLS: Request action) -->
+                    <line class="msg" x1="80" y1="183" x2="232" y2="183" marker-end="url(#ah)" />
+                    <text class="msg-protocol" x="160" y="175" text-anchor="middle">TLS</text>
+                    <text class="msg-label" x="160" y="199" text-anchor="middle">Request action</text>
+
+                    <!-- ── Phase separator ── -->
+                    <line class="sep" x1="10" y1="218" x2="870" y2="218" />
+
+                    <!-- ══ Phase 2: Token Exchange ══ -->
+
+                    <!-- 3. Client self-loop: obtain JWT SVID -->
+                    <path class="msg" d="M 240 240 L 290 240 L 290 262 L 248 262" marker-end="url(#ah)" />
+                    <text class="msg-label" x="297" y="248" text-anchor="start">Obtain JWT-SVID</text>
+                    <text class="msg-label" x="297" y="261" text-anchor="start">(agent.sock)</text>
+
+                    <!-- 4. Client -> Keycloak (mTLS) -->
+                    <line class="msg" x1="240" y1="293" x2="392" y2="293" marker-end="url(#ah)" />
+                    <text class="msg-protocol" x="320" y="285" text-anchor="middle">mTLS</text>
+                    <text class="msg-label" x="320" y="309" text-anchor="middle">JWT-SVID (client_credentials)</text>
+
+                    <!-- 5. Keycloak self-loop: validate JWT-SVID -->
+                    <path class="msg" d="M 400 331 L 450 331 L 450 353 L 408 353" marker-end="url(#ah)" />
+                    <text class="msg-label" x="457" y="346" text-anchor="start">Validate JWT-SVID</text>
+
+                    <!-- 6. Keycloak -> Client (return: Access Token) -->
+                    <line class="msg-ret" x1="400" y1="385" x2="248" y2="385" marker-end="url(#ah-ret)" />
+                    <text class="msg-label" x="320" y="381" text-anchor="middle">Access Token</text>
+
+                    <!-- ── Phase separator ── -->
+                    <line class="sep" x1="10" y1="418" x2="870" y2="418" />
+
+                    <!-- ══ Phase 3: API Call — crosses Skupper ══ -->
+
+                    <!-- 7. Client -> Server (mTLS + Bearer, crosses Skupper) -->
+                    <line class="msg" x1="240" y1="448" x2="632" y2="448" marker-end="url(#ah)" />
+                    <text class="msg-protocol" x="440" y="440" text-anchor="middle">mTLS</text>
+                    <text class="msg-label" x="440" y="464" text-anchor="middle">/admin + Bearer Token</text>
+
+                    <!-- 8. Server self-loop: local token validation -->
+                    <path class="msg" d="M 640 486 L 690 486 L 690 508 L 648 508" marker-end="url(#ah)" />
+                    <text class="msg-label" x="697" y="501" text-anchor="start">Validate Token (local)</text>
+
+                    <!-- 9. Server -> Client (return: response, crosses Skupper) -->
+                    <line class="msg-ret" x1="640" y1="538" x2="248" y2="538" marker-end="url(#ah-ret)" />
+                    <text class="msg-label" x="440" y="534" text-anchor="middle">200: Admin Endpoint</text>
+
+                    <!-- 10. Client -> Browser (return: response) -->
+                    <line class="msg-ret" x1="240" y1="575" x2="88" y2="575" marker-end="url(#ah-ret)" />
+                    <text class="msg-label" x="160" y="571" text-anchor="middle">Response</text>
+                </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-panel" id="tab-demo">
+            <div class="tab-content">
+                <div class="table-wrapper">
+                    <table>
+                <thead>
+                    <tr>
+                        <th>Action</th>
+                        <th>Description</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><button onclick="callEndpoint('unauthorized-hello', 'unauthorized-hello-result', this)">Unauthorized Hello</button></td>
+                        <td class="description">Calls <code>/hello</code> without a Bearer token. The server should accept the request as no Authorization required for this endpoint. Expected: <code>200</code></td>
+                        <td><span class="result" id="unauthorized-hello-result"></span></td>
+                    </tr>
+                    <tr>
+                        <td><button onclick="callEndpoint('unauthorized-admin', 'unauthorized-admin-result', this)">Unauthorized Admin</button></td>
+                        <td class="description">Calls <code>/admin</code> without a Bearer token. Expected: <code>403</code></td>
+                        <td><span class="result" id="unauthorized-admin-result"></span></td>
+                    </tr>
+                    <tr>
+                        <td><button onclick="callEndpoint('authorized-admin', 'authorized-admin-result', this)">Authorized Admin</button></td>
+                        <td class="description">Calls <code>/admin</code> with a valid Bearer token containing the <code>admin</code> role. Expected: <code>200</code></td>
+                        <td><span class="result" id="authorized-admin-result"></span></td>
+                    </tr>
+                </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <span class="footer-tag">SPIFFE / SPIRE</span>
+            <span class="footer-tag">Keycloak</span>
+            <span class="footer-tag">mTLS</span>
+            <span class="footer-tag">JWT-SVID</span>
+            <span class="footer-tag">Skupper</span>
+            <span class="footer-tag">Federation</span>
+        </footer>
+    </div>
+
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            const next = isDark ? 'light' : 'dark';
+            html.setAttribute('data-theme', next);
+            document.getElementById('theme-icon').innerHTML = isDark ? '&#9790;' : '&#9788;';
+            document.getElementById('theme-label').textContent = isDark ? 'Dark' : 'Light';
+            localStorage.setItem('theme', next);
+        }
+
+        (function() {
+            const saved = localStorage.getItem('theme');
+            if (saved) {
+                document.documentElement.setAttribute('data-theme', saved);
+                if (saved === 'light') {
+                    document.getElementById('theme-icon').innerHTML = '&#9790;';
+                    document.getElementById('theme-label').textContent = 'Dark';
+                }
+            }
+        })();
+
+        function switchTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.querySelector(`.tab[onclick*="${name}"]`).classList.add('active');
+            document.getElementById('tab-' + name).classList.add('active');
+        }
+
+        async function callEndpoint(path, resultId, btn) {
+            const cell = document.getElementById(resultId);
+            cell.className = 'result loading-state';
+            cell.textContent = 'Requesting\u2026';
+            btn.classList.add('loading');
+            try {
+                const response = await fetch('/' + path);
+                const text = await response.text();
+                cell.textContent = text;
+                const status = parseInt(text, 10);
+                if (status >= 200 && status < 300) cell.className = 'result success';
+                else if (status >= 400 && status < 500) cell.className = 'result client-error';
+                else if (status >= 500) cell.className = 'result server-error';
+                else cell.className = 'result';
+            } catch (error) {
+                cell.textContent = 'Error: ' + error.message;
+                cell.className = 'result error';
+            } finally {
+                btn.classList.remove('loading');
+            }
+        }
+    </script>
+</body>
+</html>

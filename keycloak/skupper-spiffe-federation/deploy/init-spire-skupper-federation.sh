@@ -21,16 +21,6 @@ mkdir -p ${TMP}
 
 SPIRE_NS="spire"
 
-echo "--- Installing Skupper on Public Cluster ---"
-export KUBECONFIG=$HOME/.kube/public
-kubectl apply -f https://skupper.io/install.yaml
-kubectl rollout status deployment/skupper-controller -n skupper
-
-echo "--- Installing Skupper on Private Cluster ---"
-export KUBECONFIG=$HOME/.kube/private
-kubectl apply -f https://skupper.io/install.yaml
-kubectl rollout status deployment/skupper-controller -n skupper
-
 echo "--- Creating Public Skupper site and Token ---"
 export KUBECONFIG=$HOME/.kube/public
 skupper site create public --enable-link-access -n "${SPIRE_NS}" || true
@@ -150,6 +140,16 @@ else
     -selector k8s:ns:client \
     -selector k8s:sa:hello-client \
     -federatesWith spiffe://private.demo.example.com
+
+  # keycloak workload.
+  kubectl exec -n spire statefulset/spire-server -c spire-server -- \
+    ${PUBLIC_SPIRE_SERVER_BIN} entry create \
+    -spiffeID spiffe://public.demo.example.com/keycloak \
+    -parentID spiffe://public.demo.example.com/ns/spire/sa/spire-agent \
+    -selector k8s:ns:keycloak \
+    -selector k8s:sa:default \
+    -federatesWith spiffe://private.demo.example.com \
+    -dns keycloak.keycloak.svc.cluster.local # Allows kcadm.sh hostname verification to work as expected
 
   # hello-server workload on private cluster
   export KUBECONFIG=$HOME/.kube/private

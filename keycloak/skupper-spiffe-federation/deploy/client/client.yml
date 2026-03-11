@@ -76,6 +76,8 @@ spec:
         ports:
         - containerPort: 8443
         env:
+        - name: SERVER_URL
+          value: "https://hello-server.client.svc.cluster.local:8443"
         - name: SPIFFE_ENDPOINT_SOCKET
           value: "unix:/run/spire/sockets/agent.sock"
 #        - name: JAVA_OPTS_APPEND

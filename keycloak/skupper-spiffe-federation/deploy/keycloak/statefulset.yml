@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+spec:
+  serviceName: keycloak-discovery
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      initContainers:
+        # Sidecar to continuously fetch and update the X.509 SVID and trust bundle via the Workload API.
+        # Writes: svid.pem (cert chain), svid_key.pem (private key), bundle.pem (trust bundle).
+        - name: spiffe-helper
+          image: ghcr.io/spiffe/spiffe-helper:0.11.0
+          args: ["-config", "/opt/spiffe-helper/helper.conf"]
+          # Continue to execute as a sidecar
+          restartPolicy: Always
+          securityContext:
+            runAsUser: 1000
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8081
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets
+            - name: spiffe-certs
+              mountPath: /opt/spiffe-certs
+            - name: spiffe-helper-config
+              mountPath: /opt/spiffe-helper
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:nightly
+          args: ["start"]
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: "admin"
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              value: "admin"
+            - name: KC_PROXY_HEADERS
+              value: "xforwarded"
+            - name: KC_FEATURES
+              value: "client-auth-federated,spiffe"
+            - name: KC_HOSTNAME
+              value: "keycloak.keycloak.svc.cluster.local"
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_DB
+              value: "dev-file"
+            - name: KC_HTTPS_CERTIFICATE_FILE
+              value: "/opt/spiffe-certs/svid.pem"
+            - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+              value: "/opt/spiffe-certs/svid_key.pem"
+            - name: KC_TRUSTSTORE_PATHS
+              value: "/opt/spiffe-server-oidc-ca/ca.pem,/opt/spiffe-certs/bundle.pem"
+            - name: KC_HTTPS_MANAGEMENT_CLIENT_AUTH
+              value: "none"
+            # SPIRE default expiration
+            # Signing CA 24hr - Rotate every 12hr
+            # X.509-SVIDs 1hr - Rotate every 30m
+            # JWT-SVIDs 5m
+            - name: KC_HTTPS_CERTIFICATES_RELOAD_PERIOD
+              value: "25m"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: JAVA_OPTS_APPEND
+#              value: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -Djavax.net.debug=ssl:handshake"
+              value: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -Djdk.httpclient.HttpClient.log=ssl,requests,errors"
+          ports:
+            - name: https
+              containerPort: 8443
+            - name: management
+              containerPort: 9000
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+              scheme: HTTPS
+          volumeMounts:
+            - name: keycloak-data
+              mountPath: /opt/keycloak/data
+            - name: spiffe-certs
+              mountPath: /opt/spiffe-certs
+            - name: spiffe-server-oidc-ca
+              mountPath: /opt/spiffe-server-oidc-ca
+              readOnly: true
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/socket
+            type: DirectoryOrCreate
+        - name: spiffe-certs
+          emptyDir: {}
+        - name: spiffe-helper-config
+          configMap:
+            name: spiffe-helper-config
+        - name: spiffe-server-oidc-ca
+          secret:
+            secretName: spiffe-server-oidc-ca
+  volumeClaimTemplates:
+    - metadata:
+        name: keycloak-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

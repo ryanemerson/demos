@@ -18,5 +18,8 @@ spec:
     connectionString: /run/spire/data/datastore.sqlite3
   federation:
     bundleEndpoint:
-      profile: https_spiffe
+      profile: https_web
+      httpsWeb:
+        servingCert:
+          externalSecretRef: spire-federation-cert
     managedRoute: "false"

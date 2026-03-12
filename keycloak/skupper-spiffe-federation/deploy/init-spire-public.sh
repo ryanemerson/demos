@@ -1,6 +1,8 @@
 #!/bin/bash
+set -e
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+TMP="${SCRIPT_DIR}/.tmp"
 PUBLIC_PLATFORM="${PUBLIC_PLATFORM:-minikube}"
 
 if [ "${PUBLIC_PLATFORM}" = "openshift" ]; then
@@ -11,7 +13,20 @@ fi
 
 echo "--- Deploying SPIRE (public) ---"
 
+# Create unsigned CA for federation bundle endpoint
+mkdir -p ${TMP}
+openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -subj "/CN=spire-server" -addext "subjectAltName=DNS:spire-server.spire.svc.cluster.local" \
+  -keyout ${TMP}/spire-public.key \
+  -out ${TMP}/spire-public.pem
+
 export KUBECONFIG=$HOME/.kube/public
+
+# Create the spire namespace and federation cert secret before deploying SPIRE
+kubectl create namespace spire --dry-run=client -o yaml | kubectl apply -f -
+kubectl delete secret spire-federation-cert -n spire --ignore-not-found
+kubectl create secret tls spire-federation-cert -n spire \
+  --cert=${TMP}/spire-public.pem \
+  --key=${TMP}/spire-public.key
 
 if [ "${PUBLIC_PLATFORM}" = "openshift" ]; then
   # Install the Zero Trust Workload Identity Manager operator

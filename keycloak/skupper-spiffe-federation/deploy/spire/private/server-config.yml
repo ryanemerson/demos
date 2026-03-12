@@ -25,11 +25,14 @@ data:
         bundle_endpoint {
             address = "0.0.0.0"
             port = 8443
-        }
-        federates_with "public.demo.example" {
-            bundle_endpoint_url = "https://spire-public:443"
-            bundle_endpoint_profile "https_spiffe" {
-                endpoint_spiffe_id = "spiffe://public.demo.example.com/spire/server"
+            profile {
+              https_web {
+                serving_cert_file {
+                  cert_file_path = "/run/spire/federation-cert/tls.crt"
+                  key_file_path = "/run/spire/federation-cert/tls.key"
+                  file_sync_interval = "1h"
+                }
+              }
             }
         }
       }

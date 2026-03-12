@@ -47,6 +47,9 @@ spec:
         - name: spire-server-socket
           mountPath: /tmp/spire-server/private
           readOnly: false
+        - name: spire-federation-cert
+          mountPath: /run/spire/federation-cert
+          readOnly: true
         readinessProbe:
           exec:
             command:
@@ -68,3 +71,6 @@ spec:
         emptyDir: {}
       - name: spire-server-socket
         emptyDir: {}
+      - name: spire-federation-cert
+        secret:
+          secretName: spire-federation-cert

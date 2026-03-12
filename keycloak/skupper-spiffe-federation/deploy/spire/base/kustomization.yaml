@@ -8,6 +8,6 @@ resources:
   - agent-daemonset.yml
 images:
   - name: ghcr.io/spiffe/spire-server
-    newTag: "1.9.4"
+    newTag: "1.14.2"
   - name: ghcr.io/spiffe/spire-agent
-    newTag: "1.9.4"
+    newTag: "1.14.2"

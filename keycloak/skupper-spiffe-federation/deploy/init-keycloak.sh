@@ -24,10 +24,9 @@ else
   kubectl apply -k "${SCRIPT_DIR}/keycloak"
 fi
 
-echo "--- Configure Keycloak Spire Trust Bundle ---"
-kubectl exec -n spire spire-server-0 -- ${PUBLIC_SPIRE_SERVER_BIN} bundle show -format pem > ${TMP}/spiffe-public-ca.pem
+echo "--- Configure Keycloak Spire Federation CA ---"
 kubectl delete secret spiffe-server-oidc-ca -n keycloak --ignore-not-found
-kubectl create secret generic spiffe-server-oidc-ca -n keycloak --from-file=ca.pem=${TMP}/spiffe-public-ca.pem
+kubectl create secret generic spiffe-server-oidc-ca -n keycloak --from-file=ca.pem=${TMP}/spire-public.pem
 
 kubectl rollout status statefulset/keycloak -n keycloak
 

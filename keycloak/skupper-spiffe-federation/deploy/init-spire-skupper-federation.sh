@@ -61,16 +61,16 @@ if [ "${PUBLIC_PLATFORM}" = "openshift" ] && [ "${PRIVATE_PLATFORM}" = "openshif
   # Get each cluster's trust bundle via the SPIRE server API
   SPIRE_SERVER_POD=$(kubectl -n "${SPIRE_NS}" get pod -l app=spire-server -o jsonpath='{.items[0].metadata.name}')
   kubectl exec -n "${SPIRE_NS}" "${SPIRE_SERVER_POD}" -c spire-server -- \
-    ${PRIVATE_SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/.spiffe-private.bundle
+    ${PRIVATE_SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/spire-private.bundle
 
   export KUBECONFIG=$HOME/.kube/public
   SPIRE_SERVER_POD=$(kubectl -n "${SPIRE_NS}" get pod -l app=spire-server -o jsonpath='{.items[0].metadata.name}')
   kubectl exec -n "${SPIRE_NS}" "${SPIRE_SERVER_POD}" -c spire-server -- \
-    ${PUBLIC_SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/.spiffe-public.bundle
+    ${PUBLIC_SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/spire-public.bundle
 
   # Escape the bundle JSON for embedding in YAML
-  PRIVATE_BUNDLE=$(cat ${TMP}/.spiffe-private.bundle)
-  PUBLIC_BUNDLE=$(cat ${TMP}/.spiffe-public.bundle)
+  PRIVATE_BUNDLE=$(cat ${TMP}/spire-private.bundle)
+  PUBLIC_BUNDLE=$(cat ${TMP}/spire-public.bundle)
 
   echo "--- Creating ClusterFederatedTrustDomain resources ---"
 
@@ -84,8 +84,7 @@ spec:
   trustDomain: private.demo.example.com
   bundleEndpointURL: https://spire-private:443
   bundleEndpointProfile:
-    type: https_spiffe
-    endpointSPIFFEID: spiffe://private.demo.example.com/spire/server
+    type: https_web
   trustDomainBundle: |
     ${PRIVATE_BUNDLE}
 EOF
@@ -101,8 +100,7 @@ spec:
   trustDomain: public.demo.example.com
   bundleEndpointURL: https://spire-public:443
   bundleEndpointProfile:
-    type: https_spiffe
-    endpointSPIFFEID: spiffe://public.demo.example.com/spire/server
+    type: https_web
   trustDomainBundle: |
     ${PUBLIC_BUNDLE}
 EOF
@@ -114,21 +112,21 @@ else
   # Manual SPIRE: exchange bundles and register entries via CLI
   # ---------------------------------------------------------------------------
   echo "--- Configure Spire Trust Bundles ---"
-  kubectl exec -n spire spire-server-0 -- ${PRIVATE_SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/.spiffe-private.bundle
+  kubectl exec -n spire spire-server-0 -- ${PRIVATE_SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/spire-private.bundle
 
   export KUBECONFIG=$HOME/.kube/public
-  kubectl exec -n spire spire-server-0 -- ${PUBLIC_SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/.spiffe-public.bundle
+  kubectl exec -n spire spire-server-0 -- ${PUBLIC_SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/spire-public.bundle
 
   kubectl exec -i -n spire spire-server-0 -- \
     ${PUBLIC_SPIRE_SERVER_BIN} bundle set \
     -format spiffe \
-    -id spiffe://private.demo.example.com < ${TMP}/.spiffe-private.bundle
+    -id spiffe://private.demo.example.com < ${TMP}/spire-private.bundle
 
   export KUBECONFIG=$HOME/.kube/private
   kubectl exec -i -n spire spire-server-0 -- \
     ${PRIVATE_SPIRE_SERVER_BIN} bundle set \
     -format spiffe \
-    -id spiffe://public.demo.example.com < ${TMP}/.spiffe-public.bundle
+    -id spiffe://public.demo.example.com < ${TMP}/spire-public.bundle
 
   echo "--- Registering federated workload entries ---"
   # hello-client workload on public cluster

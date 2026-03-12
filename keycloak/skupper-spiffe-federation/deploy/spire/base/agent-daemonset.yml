@@ -17,49 +17,60 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: spire-agent
       containers:
-      - name: spire-agent
-        image: ghcr.io/spiffe/spire-agent:1.14.2
-        args: ["-config", "/run/spire/config/agent.conf"]
-        env:
-        - name: MY_NODE_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: spec.nodeName
-        volumeMounts:
-        - name: spire-agent-config
-          mountPath: /run/spire/config
-          readOnly: true
-        - name: spire-agent-socket-dir
-          mountPath: /run/spire/sockets
-        - name: spire-agent-data
-          mountPath: /run/spire/agent
-        - name: spire-agent-token
-          mountPath: /var/run/secrets/tokens
-          readOnly: true
-        readinessProbe:
-          exec:
-            command:
-            - /opt/spire/bin/spire-agent
-            - healthcheck
-            - -socketPath
-            - /run/spire/sockets/agent.sock
-          initialDelaySeconds: 10
-          periodSeconds: 5
+        - name: spire-agent
+          image: ghcr.io/spiffe/spire-agent:1.14.2
+          args: ["-config", "/run/spire/config/agent.conf"]
+          env:
+            - name: MY_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - name: healthz
+              containerPort: 9982
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: healthz
+            initialDelaySeconds: 15
+            periodSeconds: 60
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: healthz
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-data
+              mountPath: /run/spire/data
+            - name: spire-bundle
+              mountPath: /run/spire/bundle
+              readOnly: true
+            - name: spire-agent-socket-dir
+              mountPath: /run/spire/sockets
+            - name: spire-token
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
       volumes:
-      - name: spire-agent-config
-        configMap:
-          name: spire-agent-config
-      - name: spire-agent-socket-dir
-        hostPath:
-          # Unique per-namespace path prevents socket conflicts on the shared minikube node
-          path: /run/spire/socket
-          type: DirectoryOrCreate
-      - name: spire-agent-data
-        emptyDir: {}
-      - name: spire-agent-token
-        projected:
-          sources:
-          - serviceAccountToken:
-              path: spire-agent
-              expirationSeconds: 7200
-              audience: spire-server
+        - name: spire-config
+          configMap:
+            name: spire-agent-config
+        - name: spire-data
+          emptyDir: {}
+        - name: spire-bundle
+          configMap:
+            name: spire-bundle
+        - name: spire-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: spire-agent
+                  expirationSeconds: 7200
+                  audience: spire-server
+        - name: spire-agent-socket-dir
+          hostPath:
+            path: /run/spire/agent-sockets
+            type: DirectoryOrCreate

@@ -11,19 +11,16 @@ if [ "${PUBLIC_PLATFORM}" = "openshift" ]; then
   kubectl delete -k "${SCRIPT_DIR}/overlays/openshift/keycloak" --ignore-not-found
   kubectl delete -k "${SCRIPT_DIR}/overlays/openshift/client" --ignore-not-found
   kubectl delete -k "${SCRIPT_DIR}/overlays/openshift/spire/public" --ignore-not-found
-  kubectl delete clusterrole spire-server spire-agent --ignore-not-found
-  kubectl delete clusterrolebinding spire-server spire-agent --ignore-not-found
   kubectl delete scc spire-agent spire-spiffe-csi-driver --ignore-not-found
 else
   kubectl delete -k "${SCRIPT_DIR}/keycloak" --ignore-not-found
   kubectl delete -k "${SCRIPT_DIR}/spire/public" --ignore-not-found
   kubectl delete -k "${SCRIPT_DIR}/client" --ignore-not-found
-  # Cluster-scoped RBAC created by manual SPIRE
-  kubectl delete clusterrole spire-server-cluster-role spire-agent-cluster-role --ignore-not-found
-  kubectl delete clusterrolebinding spire-server-cluster-role-binding spire-agent-cluster-role-binding --ignore-not-found
 fi
 
 kubectl delete -k "${SCRIPT_DIR}/skupper" --ignore-not-found
+kubectl delete clusterrole spire-server spire-agent --ignore-not-found
+kubectl delete clusterrolebinding spire-server spire-agent --ignore-not-found
 kubectl delete namespace keycloak --ignore-not-found
 kubectl delete namespace client --ignore-not-found
 kubectl delete namespace spire --ignore-not-found
@@ -35,16 +32,14 @@ if [ "${PRIVATE_PLATFORM}" = "openshift" ]; then
   kubectl delete -k "${SCRIPT_DIR}/server" --ignore-not-found
   kubectl delete -k "${SCRIPT_DIR}/overlays/openshift/server" --ignore-not-found
   kubectl delete -k "${SCRIPT_DIR}/overlays/openshift/spire/private" --ignore-not-found
-  kubectl delete clusterrole spire-server spire-agent --ignore-not-found
-  kubectl delete clusterrolebinding spire-server spire-agent --ignore-not-found
   kubectl delete scc spire-agent spire-spiffe-csi-driver --ignore-not-found
 else
   kubectl delete -k "${SCRIPT_DIR}/spire/private" --ignore-not-found
-  kubectl delete clusterrole spire-server-cluster-role spire-agent-cluster-role --ignore-not-found
-  kubectl delete clusterrolebinding spire-server-cluster-role-binding spire-agent-cluster-role-binding --ignore-not-found
 fi
 
 kubectl delete -k "${SCRIPT_DIR}/skupper" --ignore-not-found
+kubectl delete clusterrole spire-server spire-agent --ignore-not-found
+kubectl delete clusterrolebinding spire-server spire-agent --ignore-not-found
 kubectl delete namespace server --ignore-not-found
 kubectl delete namespace spire --ignore-not-found
 

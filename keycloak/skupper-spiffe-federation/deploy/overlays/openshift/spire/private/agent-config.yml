@@ -5,49 +5,36 @@ metadata:
   namespace: spire
 data:
   agent.conf: |
-    {
-      "agent": {
-        "data_dir": "/var/lib/spire",
-        "log_level": "info",
-        "server_address": "spire-server.spire",
-        "server_port": "443",
-        "socket_path": "/tmp/spire-agent/public/spire-agent.sock",
-        "trust_bundle_path": "/run/spire/bundle/bundle.crt",
-        "trust_domain": "private.demo.example.com"
-      },
-      "health_checks": {
-        "bind_address": "0.0.0.0",
-        "bind_port": 9982,
-        "listener_enabled": true,
-        "live_path": "/live",
-        "ready_path": "/ready"
-      },
-      "plugins": {
-        "KeyManager": [
-          {
-            "memory": {
-              "plugin_data": null
-            }
-          }
-        ],
-        "NodeAttestor": [
-          {
-            "k8s_psat": {
-              "plugin_data": {
-                "cluster": "private"
-              }
-            }
-          }
-        ],
-        "WorkloadAttestor": [
-          {
-            "k8s": {
-              "plugin_data": {
-                "node_name_env": "MY_NODE_NAME",
-                "skip_kubelet_verification": true
-              }
-            }
-          }
-        ]
+    agent {
+      data_dir = "/run/spire/data"
+      log_level = "INFO"
+      server_address = "spire-server.spire.svc.cluster.local"
+      server_port = "8081"
+      socket_path = "/run/spire/sockets/agent.sock"
+      trust_bundle_path = "/run/spire/bundle/bundle.crt"
+      trust_domain = "private.demo.example.com"
+    }
+    plugins {
+      NodeAttestor "k8s_psat" {
+        plugin_data {
+          cluster = "private"
+          token_path = "/var/run/secrets/tokens/spire-agent"
+        }
       }
+      KeyManager "memory" {
+        plugin_data {}
+      }
+      WorkloadAttestor "k8s" {
+        plugin_data {
+          skip_kubelet_verification = true
+          node_name_env = "MY_NODE_NAME"
+        }
+      }
+    }
+    health_checks {
+      bind_address = "0.0.0.0"
+      bind_port = "9982"
+      listener_enabled = true
+      live_path = "/live"
+      ready_path = "/ready"
     }

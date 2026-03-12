@@ -8,7 +8,6 @@ data:
     server {
       bind_address = "0.0.0.0"
       bind_port = "8081"
-      socket_path = "/tmp/spire-server/private/api.sock"
       trust_domain = "public.demo.example.com"
       data_dir = "/run/spire/data"
       log_level = "INFO"
@@ -23,16 +22,14 @@ data:
       }
       federation {
         bundle_endpoint {
-            address = "0.0.0.0"
-            port = 8443
-            profile {
-              https_web {
-                serving_cert_file {
-                  cert_file_path = "/run/spire/federation-cert/tls.crt"
-                  key_file_path = "/run/spire/federation-cert/tls.key"
-                  file_sync_interval = "1h"
-                }
-              }
+          address = "0.0.0.0"
+          port = 8443
+          profile "https_web" {
+            serving_cert_file {
+              cert_file_path = "/run/spire/server-tls/tls.crt"
+              key_file_path = "/run/spire/server-tls/tls.key"
+              file_sync_interval = "1h"
+            }
           }
         }
       }
@@ -59,4 +56,17 @@ data:
           keys_path = "/run/spire/data/keys.json"
         }
       }
+      Notifier "k8sbundle" {
+        plugin_data {
+          config_map = "spire-bundle"
+          namespace = "spire"
+        }
+      }
+    }
+    health_checks {
+      bind_address = "0.0.0.0"
+      bind_port = "8080"
+      listener_enabled = true
+      live_path = "/live"
+      ready_path = "/ready"
     }

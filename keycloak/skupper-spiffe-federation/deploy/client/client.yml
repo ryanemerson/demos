@@ -90,7 +90,7 @@ spec:
       volumes:
       - name: spire-agent-socket
         hostPath:
-          path: /run/spire/socket
+          path: /run/spire/agent-sockets
           type: DirectoryOrCreate
       - name: spiffe-certs
         emptyDir: {}

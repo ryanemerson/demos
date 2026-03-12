@@ -4,16 +4,8 @@ set -e
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 TMP=${SCRIPT_DIR}/.tmp
 PUBLIC_PLATFORM="${PUBLIC_PLATFORM:-minikube}"
-PRIVATE_PLATFORM="${PRIVATE_PLATFORM:-minikube}"
-
 mkdir -p ${TMP}
 export KUBECONFIG=$HOME/.kube/public
-
-if [ "${PUBLIC_PLATFORM}" = "openshift" ]; then
-  PUBLIC_SPIRE_SERVER_BIN="/spire-server"
-else
-  PUBLIC_SPIRE_SERVER_BIN="/opt/spire/bin/spire-server"
-fi
 
 echo "----------------------------"
 echo "Deploy Keycloak to the Public Cluster"
@@ -61,7 +53,7 @@ echo "------------------------------------------"
 echo "Create Kubernetes Identity Provider config"
 echo "------------------------------------------"
 
-$KCADMIN create identity-provider/instances ${KCCONFIG} -r spiffe -s alias=spiffe -s providerId=spiffe -s config='{"trustDomain": "spiffe://public.demo.example.com", "bundleEndpoint": "https://spire-server.spire.svc.cluster.local:443"}'
+$KCADMIN create identity-provider/instances ${KCCONFIG} -r spiffe -s alias=spiffe -s providerId=spiffe -s config='{"trustDomain": "spiffe://public.demo.example.com", "bundleEndpoint": "https://spire-server.spire.svc.cluster.local:8443"}'
 
 echo "------------------------------------------------------------"
 echo "Create client authenticating with SPIFFE"
@@ -94,7 +86,7 @@ echo "----------------------------"
 echo "--- Creating Public Skupper site and Token ---"
 skupper site create public --enable-link-access -n keycloak || true
 skupper token issue ${TMP}/skupper-keycloak.token -n keycloak
-skupper connector create keycloak-skupper 8443 --workload service/keycloak -n keycloak
+skupper connector create keycloak 8443 --workload service/keycloak -n keycloak
 
 echo "--- Creating Private Skupper site and redeeming public token ---"
 export KUBECONFIG=$HOME/.kube/private

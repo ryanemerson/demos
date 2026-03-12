@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: spire-server
+  namespace: spire
+spec:
+  selector:
+    app: spire-server
+  ports:
+    - name: grpc
+      port: 443
+      targetPort: grpc
+    - name: metrics
+      port: 9402
+      targetPort: 9402
+    - name: federation
+      port: 8443
+      targetPort: 8443
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spire-agent
+  namespace: spire
+spec:
+  selector:
+    app: spire-agent
+  ports:
+    - name: metrics
+      port: 9402
+      targetPort: 9402

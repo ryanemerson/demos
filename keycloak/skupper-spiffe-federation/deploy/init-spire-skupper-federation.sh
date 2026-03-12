@@ -1,20 +1,7 @@
 #!/bin/bash
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 TMP="${SCRIPT_DIR}"/.tmp
-PUBLIC_PLATFORM="${PUBLIC_PLATFORM:-minikube}"
-PRIVATE_PLATFORM="${PRIVATE_PLATFORM:-minikube}"
-
-if [ "${PUBLIC_PLATFORM}" = "openshift" ]; then
-  PUBLIC_SPIRE_SERVER_BIN="/spire-server"
-else
-  PUBLIC_SPIRE_SERVER_BIN="/opt/spire/bin/spire-server"
-fi
-
-if [ "${PRIVATE_PLATFORM}" = "openshift" ]; then
-  PRIVATE_SPIRE_SERVER_BIN="/spire-server"
-else
-  PRIVATE_SPIRE_SERVER_BIN="/opt/spire/bin/spire-server"
-fi
+SPIRE_SERVER_BIN="/opt/spire/bin/spire-server"
 
 set -e
 mkdir -p ${TMP}
@@ -50,115 +37,55 @@ export KUBECONFIG=$HOME/.kube/private
 skupper listener create spire-public 443 -n "${SPIRE_NS}"
 
 # ---------------------------------------------------------------------------
-# Federation setup differs between operator-managed and manual SPIRE
+# Exchange trust bundles and register workload entries via CLI
 # ---------------------------------------------------------------------------
-if [ "${PUBLIC_PLATFORM}" = "openshift" ] && [ "${PRIVATE_PLATFORM}" = "openshift" ]; then
-  # ---------------------------------------------------------------------------
-  # Operator-managed: use ClusterFederatedTrustDomain CRDs
-  # ---------------------------------------------------------------------------
-  echo "--- Exchanging trust bundles for ClusterFederatedTrustDomain ---"
+echo "--- Configure Spire Trust Bundles ---"
+kubectl exec -n spire spire-server-0 -c spire-server -- ${SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/spire-private.bundle
 
-  # Get each cluster's trust bundle via the SPIRE server API
-  SPIRE_SERVER_POD=$(kubectl -n "${SPIRE_NS}" get pod -l app=spire-server -o jsonpath='{.items[0].metadata.name}')
-  kubectl exec -n "${SPIRE_NS}" "${SPIRE_SERVER_POD}" -c spire-server -- \
-    ${PRIVATE_SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/spire-private.bundle
+export KUBECONFIG=$HOME/.kube/public
+kubectl exec -n spire spire-server-0 -c spire-server -- ${SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/spire-public.bundle
 
-  export KUBECONFIG=$HOME/.kube/public
-  SPIRE_SERVER_POD=$(kubectl -n "${SPIRE_NS}" get pod -l app=spire-server -o jsonpath='{.items[0].metadata.name}')
-  kubectl exec -n "${SPIRE_NS}" "${SPIRE_SERVER_POD}" -c spire-server -- \
-    ${PUBLIC_SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/spire-public.bundle
+kubectl exec -i -n spire spire-server-0 -c spire-server -- \
+  ${SPIRE_SERVER_BIN} bundle set \
+  -format spiffe \
+  -id spiffe://private.demo.example.com < ${TMP}/spire-private.bundle
 
-  # Escape the bundle JSON for embedding in YAML
-  PRIVATE_BUNDLE=$(cat ${TMP}/spire-private.bundle)
-  PUBLIC_BUNDLE=$(cat ${TMP}/spire-public.bundle)
+export KUBECONFIG=$HOME/.kube/private
+kubectl exec -i -n spire spire-server-0 -c spire-server -- \
+  ${SPIRE_SERVER_BIN} bundle set \
+  -format spiffe \
+  -id spiffe://public.demo.example.com < ${TMP}/spire-public.bundle
 
-  echo "--- Creating ClusterFederatedTrustDomain resources ---"
+echo "--- Registering federated workload entries ---"
+# hello-client workload on public cluster
+export KUBECONFIG=$HOME/.kube/public
+kubectl exec -n spire spire-server-0 -c spire-server -- \
+  ${SPIRE_SERVER_BIN} entry create \
+  -spiffeID spiffe://public.demo.example.com/hello-client \
+  -parentID spiffe://public.demo.example.com/ns/spire/sa/spire-agent \
+  -selector k8s:ns:client \
+  -selector k8s:sa:hello-client \
+  -federatesWith spiffe://private.demo.example.com
 
-  # On the public cluster: federate with the private trust domain
-  cat <<EOF | kubectl apply -f -
-apiVersion: spire.spiffe.io/v1alpha1
-kind: ClusterFederatedTrustDomain
-metadata:
-  name: private-demo
-spec:
-  trustDomain: private.demo.example.com
-  bundleEndpointURL: https://spire-private:443
-  bundleEndpointProfile:
-    type: https_web
-  trustDomainBundle: |
-    ${PRIVATE_BUNDLE}
-EOF
+# keycloak workload
+kubectl exec -n spire spire-server-0 -c spire-server -- \
+  ${SPIRE_SERVER_BIN} entry create \
+  -spiffeID spiffe://public.demo.example.com/keycloak \
+  -parentID spiffe://public.demo.example.com/ns/spire/sa/spire-agent \
+  -selector k8s:ns:keycloak \
+  -selector k8s:sa:default \
+  -federatesWith spiffe://private.demo.example.com \
+  -dns keycloak.keycloak.svc.cluster.local # Allows kcadm.sh hostname verification to work as expected
 
-  # On the private cluster: federate with the public trust domain
-  export KUBECONFIG=$HOME/.kube/private
-  cat <<EOF | kubectl apply -f -
-apiVersion: spire.spiffe.io/v1alpha1
-kind: ClusterFederatedTrustDomain
-metadata:
-  name: public-demo
-spec:
-  trustDomain: public.demo.example.com
-  bundleEndpointURL: https://spire-public:443
-  bundleEndpointProfile:
-    type: https_web
-  trustDomainBundle: |
-    ${PUBLIC_BUNDLE}
-EOF
-
-  # Workload registration is handled by ClusterSPIFFEID resources (deployed via kustomize)
-
-else
-  # ---------------------------------------------------------------------------
-  # Manual SPIRE: exchange bundles and register entries via CLI
-  # ---------------------------------------------------------------------------
-  echo "--- Configure Spire Trust Bundles ---"
-  kubectl exec -n spire spire-server-0 -- ${PRIVATE_SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/spire-private.bundle
-
-  export KUBECONFIG=$HOME/.kube/public
-  kubectl exec -n spire spire-server-0 -- ${PUBLIC_SPIRE_SERVER_BIN} bundle show -format spiffe > ${TMP}/spire-public.bundle
-
-  kubectl exec -i -n spire spire-server-0 -- \
-    ${PUBLIC_SPIRE_SERVER_BIN} bundle set \
-    -format spiffe \
-    -id spiffe://private.demo.example.com < ${TMP}/spire-private.bundle
-
-  export KUBECONFIG=$HOME/.kube/private
-  kubectl exec -i -n spire spire-server-0 -- \
-    ${PRIVATE_SPIRE_SERVER_BIN} bundle set \
-    -format spiffe \
-    -id spiffe://public.demo.example.com < ${TMP}/spire-public.bundle
-
-  echo "--- Registering federated workload entries ---"
-  # hello-client workload on public cluster
-  export KUBECONFIG=$HOME/.kube/public
-  kubectl exec -n spire statefulset/spire-server -c spire-server -- \
-    ${PUBLIC_SPIRE_SERVER_BIN} entry create \
-    -spiffeID spiffe://public.demo.example.com/hello-client \
-    -parentID spiffe://public.demo.example.com/ns/spire/sa/spire-agent \
-    -selector k8s:ns:client \
-    -selector k8s:sa:hello-client \
-    -federatesWith spiffe://private.demo.example.com
-
-  # keycloak workload.
-  kubectl exec -n spire statefulset/spire-server -c spire-server -- \
-    ${PUBLIC_SPIRE_SERVER_BIN} entry create \
-    -spiffeID spiffe://public.demo.example.com/keycloak \
-    -parentID spiffe://public.demo.example.com/ns/spire/sa/spire-agent \
-    -selector k8s:ns:keycloak \
-    -selector k8s:sa:default \
-    -federatesWith spiffe://private.demo.example.com \
-    -dns keycloak.keycloak.svc.cluster.local # Allows kcadm.sh hostname verification to work as expected
-
-  # hello-server workload on private cluster
-  export KUBECONFIG=$HOME/.kube/private
-  kubectl exec -n spire statefulset/spire-server -c spire-server -- \
-    ${PRIVATE_SPIRE_SERVER_BIN} entry create \
-    -spiffeID spiffe://private.demo.example.com/hello-server \
-    -parentID spiffe://private.demo.example.com/ns/spire/sa/spire-agent \
-    -selector k8s:ns:server \
-    -selector k8s:sa:hello-server \
-    -dns hello-server.client.svc.cluster.local \
-    -federatesWith spiffe://public.demo.example.com
-fi
+# hello-server workload on private cluster
+export KUBECONFIG=$HOME/.kube/private
+kubectl exec -n spire spire-server-0 -c spire-server -- \
+  ${SPIRE_SERVER_BIN} entry create \
+  -spiffeID spiffe://private.demo.example.com/hello-server \
+  -parentID spiffe://private.demo.example.com/ns/spire/sa/spire-agent \
+  -selector k8s:ns:server \
+  -selector k8s:sa:hello-server \
+  -dns hello-server.client.svc.cluster.local \
+  -federatesWith spiffe://public.demo.example.com
 
 echo "--- Spire Skupper Federation Setup Complete ---"

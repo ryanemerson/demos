@@ -15,3 +15,4 @@ data:
     svid_file_name = "svid.pem"
     svid_key_file_name = "svid_key.pem"
     svid_bundle_file_name = "bundle.pem"
+    include_federated_domains = true

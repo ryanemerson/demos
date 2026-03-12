@@ -18,7 +18,7 @@ spec:
       serviceAccountName: spire-agent
       containers:
       - name: spire-agent
-        image: ghcr.io/spiffe/spire-agent
+        image: ghcr.io/spiffe/spire-agent:1.14.2
         args: ["-config", "/run/spire/config/agent.conf"]
         env:
         - name: MY_NODE_NAME

@@ -7,12 +7,13 @@ echo "--- Tearing down public cluster ---"
 export KUBECONFIG=$HOME/.kube/public
 
 if [ "${PUBLIC_PLATFORM}" = "openshift" ]; then
-  # Delete operator operands and cluster-scoped CRDs
+  # Delete OpenShift SPIRE resources
   kubectl delete -k "${SCRIPT_DIR}/overlays/openshift/keycloak" --ignore-not-found
   kubectl delete -k "${SCRIPT_DIR}/overlays/openshift/client" --ignore-not-found
   kubectl delete -k "${SCRIPT_DIR}/overlays/openshift/spire/public" --ignore-not-found
-  kubectl delete clusterfederatedtrustdomain private-demo --ignore-not-found
-  kubectl delete -k "${SCRIPT_DIR}/overlays/openshift/spire/operator/" --ignore-not-found
+  kubectl delete clusterrole spire-server spire-agent --ignore-not-found
+  kubectl delete clusterrolebinding spire-server spire-agent --ignore-not-found
+  kubectl delete scc spire-agent spire-spiffe-csi-driver --ignore-not-found
 else
   kubectl delete -k "${SCRIPT_DIR}/keycloak" --ignore-not-found
   kubectl delete -k "${SCRIPT_DIR}/spire/public" --ignore-not-found
@@ -34,8 +35,9 @@ if [ "${PRIVATE_PLATFORM}" = "openshift" ]; then
   kubectl delete -k "${SCRIPT_DIR}/server" --ignore-not-found
   kubectl delete -k "${SCRIPT_DIR}/overlays/openshift/server" --ignore-not-found
   kubectl delete -k "${SCRIPT_DIR}/overlays/openshift/spire/private" --ignore-not-found
-  kubectl delete clusterfederatedtrustdomain public-demo --ignore-not-found
-  kubectl delete -k "${SCRIPT_DIR}/overlays/openshift/spire/operator/" --ignore-not-found
+  kubectl delete clusterrole spire-server spire-agent --ignore-not-found
+  kubectl delete clusterrolebinding spire-server spire-agent --ignore-not-found
+  kubectl delete scc spire-agent spire-spiffe-csi-driver --ignore-not-found
 else
   kubectl delete -k "${SCRIPT_DIR}/spire/private" --ignore-not-found
   kubectl delete clusterrole spire-server-cluster-role spire-agent-cluster-role --ignore-not-found

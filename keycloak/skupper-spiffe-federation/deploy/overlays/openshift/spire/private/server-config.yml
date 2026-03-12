@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-server-config
+  namespace: spire
+data:
+  server.conf: |
+    {
+      "health_checks": {
+        "bind_address": "0.0.0.0",
+        "bind_port": "8080",
+        "listener_enabled": true,
+        "live_path": "/live",
+        "ready_path": "/ready"
+      },
+      "plugins": {
+        "DataStore": [
+          {
+            "sql": {
+              "plugin_data": {
+                "connection_string": "/run/spire/data/datastore.sqlite3",
+                "database_type": "sqlite3"
+              }
+            }
+          }
+        ],
+        "KeyManager": [
+          {
+            "disk": {
+              "plugin_data": {
+                "keys_path": "/run/spire/data/keys.json"
+              }
+            }
+          }
+        ],
+        "NodeAttestor": [
+          {
+            "k8s_psat": {
+              "plugin_data": {
+                "clusters": [
+                  {
+                    "private": {
+                      "audience": ["spire-server"],
+                      "service_account_allow_list": ["spire:spire-agent"]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "Notifier": [
+          {
+            "k8sbundle": {
+              "plugin_data": {
+                "config_map": "spire-bundle",
+                "namespace": "spire"
+              }
+            }
+          }
+        ]
+      },
+      "server": {
+        "bind_address": "0.0.0.0",
+        "bind_port": "8081",
+        "ca_key_type": "rsa-2048",
+        "ca_subject": [
+          {
+            "common_name": "",
+            "country": ["US"],
+            "organization": ["SPIFFE"]
+          }
+        ],
+        "ca_ttl": "12h0m0s",
+        "data_dir": "/run/spire/data",
+        "default_x509_svid_ttl": "1h0m0s",
+        "federation": {
+          "bundle_endpoint": {
+            "address": "0.0.0.0",
+            "port": 8443,
+            "profile": {
+              "https_web": {
+                "serving_cert_file": {
+                  "cert_file_path": "/run/spire/server-tls/tls.crt",
+                  "key_file_path": "/run/spire/server-tls/tls.key",
+                  "file_sync_interval": "1h"
+                }
+              }
+            }
+          }
+        },
+        "jwt_issuer": "https://spire-private.spire.svc.cluster.local",
+        "log_level": "info",
+        "trust_domain": "private.demo.example.com"
+      }
+    }

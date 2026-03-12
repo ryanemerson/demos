@@ -10,14 +10,6 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Always
-      # Update SPIFFE_ENDPOINT_SOCKET for CSI driver socket path
-      - op: replace
-        path: /spec/template/spec/containers/0/env/1/value
-        value: "unix:/run/spire/agent-sockets/spire-agent.sock"
-      # Update container mount path for CSI driver
-      - op: replace
-        path: /spec/template/spec/containers/0/volumeMounts/0/mountPath
-        value: /run/spire/agent-sockets
       # Set restricted PodSecurity context
       - op: add
         path: /spec/template/spec/securityContext
@@ -37,10 +29,6 @@ patches:
           allowPrivilegeEscalation: false
           capabilities:
             drop: ["ALL"]
-      # Update initContainer mount path for CSI driver
-      - op: replace
-        path: /spec/template/spec/initContainers/0/volumeMounts/0/mountPath
-        value: /run/spire/agent-sockets
       # Replace hostPath volume with SPIFFE CSI driver ephemeral volume
       - op: replace
         path: /spec/template/spec/volumes/0
@@ -49,22 +37,3 @@ patches:
           csi:
             driver: "csi.spiffe.io"
             readOnly: true
-  - target:
-      kind: ConfigMap
-      name: spiffe-helper-config
-    patch: |
-      - op: replace
-        path: /data/helper.conf
-        value: |
-          agent_address = "/run/spire/agent-sockets/spire-agent.sock"
-          cert_dir = "/opt/spiffe-certs"
-          daemon_mode = true
-
-          health_checks {
-            listener_enabled = true
-          }
-
-          svid_file_name = "svid.pem"
-          svid_key_file_name = "svid_key.pem"
-          svid_bundle_file_name = "bundle.pem"
-          include_federated_domains = true

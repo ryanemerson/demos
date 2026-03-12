@@ -50,7 +50,7 @@ spec:
               mountPath: /run/spire/bundle
               readOnly: true
             - name: spire-agent-socket-dir
-              mountPath: /run/spire/sockets
+              mountPath: /run/spire/agent-sockets
             - name: spire-token
               mountPath: /var/run/secrets/tokens
               readOnly: true

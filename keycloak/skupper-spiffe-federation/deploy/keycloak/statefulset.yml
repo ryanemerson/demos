@@ -31,7 +31,7 @@ spec:
               port: 8081
           volumeMounts:
             - name: spire-agent-socket
-              mountPath: /run/spire/sockets
+              mountPath: /run/spire/agent-sockets
             - name: spiffe-certs
               mountPath: /opt/spiffe-certs
             - name: spiffe-helper-config

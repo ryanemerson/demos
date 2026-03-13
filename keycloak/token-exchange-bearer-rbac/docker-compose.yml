@@ -1,0 +1,64 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:nightly
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: true
+      KC_HTTP_PORT: 8080
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/demo-realm.json:/opt/keycloak/data/import/demo-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "{ printf 'HEAD /health/ready HTTP/1.0\r\n\r\n' >&0; grep 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/9000"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      QUARKUS_OIDC_AUTH_SERVER_URL: http://keycloak:8080/realms/demo
+      QUARKUS_OIDC_TOKEN_ISSUER: any
+      QUARKUS_REST_CLIENT_MICROSERVICE1_URL: http://microservice1:8082
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  microservice1:
+    build:
+      context: .
+      dockerfile: microservice1/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      QUARKUS_OIDC_AUTH_SERVER_URL: http://keycloak:8080/realms/demo
+      QUARKUS_OIDC_TOKEN_ISSUER: any
+      QUARKUS_REST_CLIENT_MICROSERVICE2_URL: http://microservice2:8083
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  microservice2:
+    build:
+      context: .
+      dockerfile: microservice2/Dockerfile
+    ports:
+      - "8083:8083"
+    environment:
+      QUARKUS_OIDC_AUTH_SERVER_URL: http://keycloak:8080/realms/demo
+      QUARKUS_OIDC_TOKEN_ISSUER: any
+    depends_on:
+      keycloak:
+        condition: service_healthy

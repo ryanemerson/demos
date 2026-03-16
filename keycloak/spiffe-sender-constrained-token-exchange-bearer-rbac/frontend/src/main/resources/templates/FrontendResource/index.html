@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User: {username} | Roles: {roles}</title>
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #1a1a2e;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #ffffff;
+            padding: 0.75rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-center {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-user svg {
+            width: 24px;
+            height: 24px;
+            fill: #4fc3f7;
+        }
+
+        .header-username {
+            font-size: 1.25rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        .header-roles {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .header-role-chip {
+            display: inline-block;
+            background: rgba(79, 195, 247, 0.15);
+            color: #4fc3f7;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            border: 1px solid rgba(79, 195, 247, 0.3);
+        }
+
+        .logout-link {
+            color: #90caf9;
+            text-decoration: none;
+            font-size: 0.8rem;
+            padding: 4px 12px;
+            border: 1px solid rgba(144, 202, 249, 0.3);
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .logout-link:hover {
+            background: rgba(144, 202, 249, 0.15);
+            border-color: rgba(144, 202, 249, 0.5);
+        }
+
+        main {
+            flex: 1;
+            max-width: 1000px;
+            width: 100%;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+        }
+
+        .card {
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e8eaed;
+        }
+
+        .card-header svg {
+            width: 22px;
+            height: 22px;
+            fill: #0f3460;
+        }
+
+        .card-header h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .action-area {
+            text-align: center;
+            padding: 0.5rem 0;
+        }
+
+        .call-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, #0f3460, #16213e);
+            color: #ffffff;
+            border: none;
+            padding: 14px 32px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(15, 52, 96, 0.3);
+        }
+
+        .call-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(15, 52, 96, 0.4);
+        }
+
+        .call-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .call-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .call-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: #ffffff;
+        }
+
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .call-btn.loading .spinner {
+            display: block;
+        }
+
+        .call-btn.loading .btn-icon {
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .response-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .response-status.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .response-status.error {
+            background: #fce4ec;
+            color: #c62828;
+        }
+
+        .response-status svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .response-content {
+            background: #f8f9fa;
+            border: 1px solid #e8eaed;
+            border-radius: 8px;
+            padding: 1.25rem;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            color: #1a1a2e;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .timestamp {
+            font-size: 0.75rem;
+            color: #9e9e9e;
+            margin-top: 0.75rem;
+            text-align: right;
+        }
+
+        footer {
+            text-align: center;
+            padding: 1.5rem;
+            color: #9e9e9e;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-center">
+        <div class="header-user">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+            </svg>
+            <span class="header-username">{username}</span>
+            <span class="header-roles" id="header-roles-display"></span>
+        </div>
+        <a href="/logout" class="logout-link">Sign Out</a>
+    </div>
+</header>
+
+<main>
+    <!-- Service Call Card -->
+    <div class="card">
+        <div class="card-header">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM5 15h14v3H5zm0-4h14v3H5zm0-4h14v3H5z"/>
+            </svg>
+            <h2>Invoke Microservice</h2>
+        </div>
+        <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1.5rem;">
+            Call Microservice 1 with your authenticated bearer token. The service will validate your
+            authorization, exchange the token, and call Microservice 2.
+        </p>
+        <div style="background: #f8f9fa; border: 1px solid #e8eaed; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; overflow-x: auto;">
+            <svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" style="width: 100%; max-width: 720px; display: block; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                <!-- Participant boxes -->
+                <rect x="10" y="5" width="90" height="30" rx="4" fill="#0f3460"/>
+                <text x="55" y="25" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">Frontend</text>
+
+                <rect x="200" y="5" width="110" height="30" rx="4" fill="#0f3460"/>
+                <text x="255" y="25" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">Microservice 1</text>
+
+                <rect x="415" y="5" width="90" height="30" rx="4" fill="#16213e"/>
+                <text x="460" y="25" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">Keycloak</text>
+
+                <rect x="610" y="5" width="110" height="30" rx="4" fill="#0f3460"/>
+                <text x="665" y="25" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">Microservice 2</text>
+
+                <!-- Lifelines -->
+                <line x1="55" y1="35" x2="55" y2="310" stroke="#ccc" stroke-dasharray="4"/>
+                <line x1="255" y1="35" x2="255" y2="310" stroke="#ccc" stroke-dasharray="4"/>
+                <line x1="460" y1="35" x2="460" y2="310" stroke="#ccc" stroke-dasharray="4"/>
+                <line x1="665" y1="35" x2="665" y2="310" stroke="#ccc" stroke-dasharray="4"/>
+
+                <!-- 1. Frontend -> MS1: Bearer Token -->
+                <line x1="55" y1="65" x2="249" y2="65" stroke="#0f3460" stroke-width="1.5" marker-end="url(#arrow)"/>
+                <text x="152" y="58" text-anchor="middle" fill="#1a1a2e" font-size="9">Bearer token (aud: ms1)</text>
+
+                <!-- 2. MS1 validates service1 role -->
+                <rect x="230" y="80" width="50" height="22" rx="3" fill="#e3f2fd" stroke="#90caf9"/>
+                <text x="255" y="95" text-anchor="middle" fill="#0f3460" font-size="8" font-weight="600">service1</text>
+
+                <!-- 3. MS1 -> Keycloak: Token Exchange -->
+                <line x1="255" y1="120" x2="454" y2="120" stroke="#e65100" stroke-width="1.5" marker-end="url(#arrow-orange)"/>
+                <text x="355" y="113" text-anchor="middle" fill="#e65100" font-size="9">Token Exchange (RFC 8693)</text>
+
+                <!-- 4. Keycloak -> MS1: New Token -->
+                <line x1="454" y1="150" x2="261" y2="150" stroke="#2e7d32" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+                <text x="355" y="143" text-anchor="middle" fill="#2e7d32" font-size="9">New token (aud: ms2)</text>
+
+                <!-- 5. MS1 -> MS2: Exchanged Bearer Token -->
+                <line x1="255" y1="190" x2="659" y2="190" stroke="#0f3460" stroke-width="1.5" marker-end="url(#arrow)"/>
+                <text x="457" y="183" text-anchor="middle" fill="#1a1a2e" font-size="9">Bearer token (aud: ms2)</text>
+
+                <!-- 6. MS2 validates service2 role -->
+                <rect x="640" y="205" width="50" height="22" rx="3" fill="#e3f2fd" stroke="#90caf9"/>
+                <text x="665" y="220" text-anchor="middle" fill="#0f3460" font-size="8" font-weight="600">service2</text>
+
+                <!-- 7. MS2 -> MS1: Decoded JWT -->
+                <line x1="659" y1="245" x2="261" y2="245" stroke="#2e7d32" stroke-width="1.5" stroke-dasharray="6" marker-end="url(#arrow-green)"/>
+                <text x="457" y="238" text-anchor="middle" fill="#2e7d32" font-size="9">Decoded JWT (JSON)</text>
+
+                <!-- 8. MS1 -> Frontend: Aggregated Response -->
+                <line x1="249" y1="280" x2="61" y2="280" stroke="#2e7d32" stroke-width="1.5" stroke-dasharray="6" marker-end="url(#arrow-green)"/>
+                <text x="152" y="273" text-anchor="middle" fill="#2e7d32" font-size="9">Aggregated response</text>
+
+                <!-- Arrow markers -->
+                <defs>
+                    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                        <path d="M0,0 L8,3 L0,6 Z" fill="#0f3460"/>
+                    </marker>
+                    <marker id="arrow-orange" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                        <path d="M0,0 L8,3 L0,6 Z" fill="#e65100"/>
+                    </marker>
+                    <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                        <path d="M0,0 L8,3 L0,6 Z" fill="#2e7d32"/>
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+        <div class="action-area">
+            <button id="callBtn" class="call-btn" onclick="callService()">
+                <span class="btn-icon">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 5v14l11-7z"/>
+                    </svg>
+                </span>
+                <span class="spinner"></span>
+                <span id="btnText">Call Microservice</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Response Card -->
+    <div class="card">
+        <div class="card-header">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+            </svg>
+            <h2>Service Response</h2>
+        </div>
+        <div id="responseStatus"></div>
+        <div id="responseContent" class="response-content"></div>
+        <div id="responseTimestamp" class="timestamp"></div>
+    </div>
+</main>
+
+<footer>
+    Secured by Keycloak OpenID Connect &middot; Quarkus Microservice Authorization Demo
+</footer>
+
+<script>
+    // Render roles as chips in header
+    (function() {
+        const rolesRaw = '{roles}';
+        const container = document.getElementById('header-roles-display');
+        const roles = rolesRaw.split(',').map(r => r.trim()).filter(r => r.length > 0);
+        if (roles.length === 1 && roles[0] === 'No roles assigned') {
+            container.textContent = '';
+        } else {
+            roles.forEach(role => {
+                const chip = document.createElement('span');
+                chip.className = 'header-role-chip';
+                chip.textContent = role;
+                container.appendChild(chip);
+            });
+        }
+    })();
+
+    async function callService() {
+        const btn = document.getElementById('callBtn');
+        const btnText = document.getElementById('btnText');
+        const responseStatus = document.getElementById('responseStatus');
+        const responseContent = document.getElementById('responseContent');
+        const responseTimestamp = document.getElementById('responseTimestamp');
+
+        // Loading state
+        btn.classList.add('loading');
+        btn.disabled = true;
+        btnText.textContent = 'Calling...';
+
+        try {
+            const response = await fetch('/api/call-service', {
+                method: 'GET',
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                const text = await response.text();
+                responseStatus.innerHTML =
+                    '<span class="response-status success">' +
+                    '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#2e7d32" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' +
+                    'Success' +
+                    '</span>';
+                responseContent.textContent = text;
+            } else {
+                const errorText = await response.text();
+                responseStatus.innerHTML =
+                    '<span class="response-status error">' +
+                    '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#c62828" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>' +
+                    'Error ' + response.status +
+                    '</span>';
+                responseContent.textContent = errorText || 'Request failed with status ' + response.status;
+            }
+
+            responseTimestamp.textContent = 'Response received at ' + new Date().toLocaleTimeString();
+        } catch (err) {
+            responseStatus.innerHTML =
+                '<span class="response-status error">' +
+                '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#c62828" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>' +
+                'Network Error' +
+                '</span>';
+            responseContent.textContent = 'Failed to reach the service: ' + err.message;
+            responseTimestamp.textContent = 'Error occurred at ' + new Date().toLocaleTimeString();
+        } finally {
+            btn.classList.remove('loading');
+            btn.disabled = false;
+            btnText.textContent = 'Call Microservice';
+        }
+    }
+</script>
+
+</body>
+</html>

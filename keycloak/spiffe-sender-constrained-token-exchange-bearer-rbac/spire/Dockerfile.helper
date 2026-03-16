@@ -1,0 +1,4 @@
+FROM ghcr.io/spiffe/spiffe-helper:0.11.0 AS helper
+FROM alpine:3.19
+COPY --from=helper /spiffe-helper /spiffe-helper
+ENTRYPOINT ["/bin/sh", "-c", "umask 0022 && exec /spiffe-helper \"$@\"", "--"]

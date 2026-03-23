@@ -35,6 +35,11 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-tls-registry</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.spiffe</groupId>
+            <artifactId>java-spiffe-provider</artifactId>
+            <version>0.8.15</version>
+        </dependency>
     </dependencies>
 
     <build>

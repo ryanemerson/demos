@@ -342,22 +342,22 @@
             </tr>
             <tr>
                 <td class="action-col">
-                    <button id="invalidMtlsBtn" class="call-btn mock-btn" onclick="callService('/api/call-service-invalid-mtls', this)">
+                    <button id="invalidJwtBtn" class="call-btn mock-btn" onclick="callService('/api/call-service-invalid-spiffe-jwt', this)">
                         <span class="btn-icon">
                             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
                             </svg>
                         </span>
                         <span class="spinner"></span>
-                        Invalid mTLS
+                        Invalid SPIFFE JWT
                     </button>
                 </td>
                 <td class="desc-col">
-                    Sends a <strong>valid bearer token</strong> but uses a TLS certificate signed by a different CA that is
-                    <strong>not part of the SPIFFE trust bundle</strong>. The certificate's issuer DN matches the real
-                    SPIFFE CA, but the signature cannot be verified. The connection is rejected at the TLS layer before
-                    the request ever reaches the application.
-                    <strong>Expected: rejected</strong> (TLS <code>certificate_unknown</code> alert).
+                    Generates a <strong>fabricated SPIFFE JWT-SVID</strong> with the correct claims structure but signed
+                    with a <strong>randomly generated key not from the SPIRE trust domain</strong>. The JWT is sent to
+                    Keycloak as a <code>client_assertion</code> in a token exchange request. Keycloak rejects it because the
+                    signature cannot be verified against the SPIRE OIDC JWKS endpoint.
+                    <strong>Expected: rejected</strong> (HTTP 401 &mdash; invalid client credentials).
                 </td>
             </tr>
         </table>

@@ -239,12 +239,17 @@ services:
       dockerfile: frontend/Dockerfile
     ports:
       - "8081:8443"
+    labels:
+      spiffe-workload: frontend
     environment:
       QUARKUS_OIDC_AUTH_SERVER_URL: https://keycloak:8443/realms/demo
       QUARKUS_OIDC_TOKEN_ISSUER: any
       QUARKUS_REST_CLIENT_MICROSERVICE1_URL: https://microservice1:8443
+      KEYCLOAK_ISSUER_URL: https://localhost:8443/realms/demo
+      SPIFFE_ENDPOINT_SOCKET: unix:///run/spire/sockets/agent.sock
     volumes:
       - frontend-certs:/opt/spiffe-certs:ro
+      - spire-agent-socket:/run/spire/sockets:ro
     depends_on:
       keycloak:
         condition: service_healthy

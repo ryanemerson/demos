@@ -8,7 +8,6 @@ COPY frontend/src frontend/src
 RUN mvn -B package -pl frontend -am -DskipTests
 
 FROM eclipse-temurin:21-jre
-RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/frontend/target/quarkus-app/ /app/
 COPY frontend/entrypoint.sh /app/entrypoint.sh

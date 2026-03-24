@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(/home/remerson/Workspace/ryanemerson/demos/keycloak/**)"
+    ]
+  }
+}

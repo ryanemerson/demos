@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile - {username}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; min-height: 100vh; }
+        .header { background: #1a1a2e; color: white; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+        .header h1 { font-size: 1.2rem; font-weight: 500; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .header-user { color: #adb5bd; font-size: 0.9rem; line-height: 1.4; }
+        .logout-btn { background: #e63946; color: white; text-decoration: none; padding: 8px 20px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; transition: background 0.2s; }
+        .logout-btn:hover { background: #c5303c; }
+        .content { max-width: 720px; margin: 32px auto; padding: 0 16px; }
+        .card { background: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); margin-bottom: 24px; }
+        .card h2 { color: #1a1a2e; margin-bottom: 16px; font-size: 1.4rem; }
+        .profile-info { display: grid; grid-template-columns: 140px 1fr; gap: 12px; }
+        .profile-label { color: #666; font-weight: 500; }
+        .profile-value { color: #333; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 16px; font-size: 0.8rem; font-weight: 500; margin-right: 6px; margin-bottom: 4px; }
+        .badge-role { background: #dbeafe; color: #1e40af; }
+        .badge-own { background: #dcfce7; color: #166534; }
+        .badge-viewing { background: #fef3c7; color: #92400e; }
+        .nav-links { margin-top: 16px; }
+        .nav-links a { color: #4361ee; text-decoration: none; margin-right: 16px; font-weight: 500; }
+        .nav-links a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Keycloak Authorization Demo</h1>
+        <div class="header-right">
+            <span class="header-user">Logged in as <strong>{currentUser}</strong> | team: <strong>{team}</strong></span>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+    </div>
+    <div class="content">
+        <div class="card">
+            <h2>User Profile</h2>
+            <div class="profile-info">
+                <span class="profile-label">Username:</span>
+                <span class="profile-value">{username}</span>
+
+                <span class="profile-label">Status:</span>
+                <span class="profile-value">
+                    {#if isOwnProfile}
+                    <span class="badge badge-own">Own Profile</span>
+                    {#else}
+                    <span class="badge badge-viewing">Viewing as Manager</span>
+                    {/if}
+                </span>
+
+                <span class="profile-label">Roles:</span>
+                <span class="profile-value">
+                    {#for role in roles}
+                    <span class="badge badge-role">{role}</span>
+                    {/for}
+                </span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Authorization Details</h2>
+            <p style="color: #555; line-height: 1.6; margin-bottom: 12px;">
+                {#if isOwnProfile}
+                You are viewing your own profile. All authenticated users can access their own <code>/users/&#123;username&#125;</code> endpoint.
+                {#else}
+                You are viewing <strong>{username}</strong>'s profile because you have the <strong>manager</strong> role. Managers can access any user's profile.
+                {/if}
+            </p>
+            <div class="nav-links">
+                <a href="/users/{currentUser}">My Profile</a>
+                {#if roles.contains('manager')}
+                <a href="/users/alice">View Alice</a>
+                <a href="/users/bob">View Bob</a>
+                <a href="/users/charlie">View Charlie</a>
+                {/if}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

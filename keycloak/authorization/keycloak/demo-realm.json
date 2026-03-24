@@ -15,7 +15,7 @@
     "realm": [
       {
         "name": "manager",
-        "description": "Manager role - grants access to all user profiles and team pages"
+        "description": "Manager role - grants access to all user profiles and can view reports"
       },
       {
         "name": "user",
@@ -78,6 +78,15 @@
       "attributes": {
         "team": ["engineering"]
       }
+    },
+    {
+      "username": "service-account-authorization-demo",
+      "enabled": true,
+      "serviceAccountClientId": "authorization-demo",
+      "clientRoles": {
+        "realm-management": ["view-users", "query-users"],
+        "authorization-demo": ["uma_protection"]
+      }
     }
   ],
   "clients": [
@@ -134,25 +143,20 @@
         ],
         "resources": [
           {
+            "name": "User List Resource",
+            "uris": ["/users"],
+            "type": "urn:authorization-demo:resources:user-list",
+            "scopes": [
+              { "name": "view" }
+            ]
+          },
+          {
             "name": "User Resource",
             "uris": ["/users/*"],
             "type": "urn:authorization-demo:resources:user",
             "scopes": [
               { "name": "view" }
             ]
-          },
-          {
-            "name": "Team Resource",
-            "uris": ["/teams/*"],
-            "type": "urn:authorization-demo:resources:team",
-            "scopes": [
-              { "name": "view" }
-            ]
-          },
-          {
-            "name": "Default Resource",
-            "uris": ["/*"],
-            "type": "urn:authorization-demo:resources:default"
           }
         ],
         "policies": [
@@ -177,36 +181,33 @@
             }
           },
           {
-            "name": "User Resource Permission",
-            "description": "Any authenticated user can access user resources. Fine-grained own-user check is enforced by the application.",
-            "type": "resource",
+            "name": "Own User or Same Team Manager Policy",
+            "description": "Grants access if the user is viewing their own profile, or if they are a manager in the same team as the target user",
+            "type": "script-own-user-or-same-team-manager.js",
             "logic": "POSITIVE",
-            "decisionStrategy": "AFFIRMATIVE",
-            "config": {
-              "resources": "[\"User Resource\"]",
-              "applyPolicies": "[\"Authenticated Users Policy\"]"
-            }
+            "decisionStrategy": "UNANIMOUS",
+            "config": {}
           },
           {
-            "name": "Team Resource Permission",
-            "description": "Only managers can access team resources. Team attribute matching is enforced by the application.",
+            "name": "User List Permission",
+            "description": "Any authenticated user can access /users to be redirected to their own profile.",
             "type": "resource",
             "logic": "POSITIVE",
             "decisionStrategy": "UNANIMOUS",
             "config": {
-              "resources": "[\"Team Resource\"]",
-              "applyPolicies": "[\"Manager Role Policy\"]"
+              "resources": "[\"User List Resource\"]",
+              "applyPolicies": "[\"Authenticated Users Policy\"]"
             }
           },
           {
-            "name": "Default Permission",
-            "description": "Default permission for authenticated users",
+            "name": "User Resource Permission",
+            "description": "Authenticated users can view their own profile. Managers can view profiles of users in their team.",
             "type": "resource",
             "logic": "POSITIVE",
-            "decisionStrategy": "AFFIRMATIVE",
+            "decisionStrategy": "UNANIMOUS",
             "config": {
-              "resources": "[\"Default Resource\"]",
-              "applyPolicies": "[\"Authenticated Users Policy\"]"
+              "resources": "[\"User Resource\"]",
+              "applyPolicies": "[\"Authenticated Users Policy\",\"Own User or Same Team Manager Policy\"]"
             }
           }
         ]

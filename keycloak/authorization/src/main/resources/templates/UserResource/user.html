@@ -26,13 +26,18 @@
         .nav-links { margin-top: 16px; }
         .nav-links a { color: #4361ee; text-decoration: none; margin-right: 16px; font-weight: 500; }
         .nav-links a:hover { text-decoration: underline; }
+        .report-list { list-style: none; padding: 0; }
+        .report-list li { padding: 10px 16px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; }
+        .report-list li:last-child { border-bottom: none; }
+        .report-list a { color: #4361ee; text-decoration: none; font-weight: 500; }
+        .report-list a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Keycloak Authorization Demo</h1>
         <div class="header-right">
-            <span class="header-user">Logged in as <strong>{currentUser}</strong> | team: <strong>{team}</strong></span>
+            <span class="header-user">Logged in as <strong>{currentUser}</strong> | team: <strong>{currentUserTeam}</strong></span>
             <a href="/logout" class="logout-btn">Logout</a>
         </div>
     </div>
@@ -54,7 +59,7 @@
 
                 <span class="profile-label">Roles:</span>
                 <span class="profile-value">
-                    {#for role in roles}
+                    {#for role in profileRoles}
                     <span class="badge badge-role">{role}</span>
                     {/for}
                 </span>
@@ -65,20 +70,35 @@
             <h2>Authorization Details</h2>
             <p style="color: #555; line-height: 1.6; margin-bottom: 12px;">
                 {#if isOwnProfile}
-                You are viewing your own profile. All authenticated users can access their own <code>/users/&#123;username&#125;</code> endpoint.
+                You are viewing your own profile. Keycloak's Authorization Services verified that you are accessing your own <code>/users/&#123;username&#125;</code> endpoint.
                 {#else}
-                You are viewing <strong>{username}</strong>'s profile because you have the <strong>manager</strong> role. Managers can access any user's profile.
+                You are viewing <strong>{username}</strong>'s profile. Keycloak's Authorization Services verified that you have the <strong>manager</strong> role and belong to the same team.
                 {/if}
             </p>
+            {#if !isOwnProfile}
             <div class="nav-links">
                 <a href="/users/{currentUser}">My Profile</a>
-                {#if roles.contains('manager')}
-                <a href="/users/alice">View Alice</a>
-                <a href="/users/bob">View Bob</a>
-                <a href="/users/charlie">View Charlie</a>
-                {/if}
             </div>
+            {/if}
         </div>
+
+        {#if isManager && isOwnProfile}
+        <div class="card">
+            <h2>Reports</h2>
+            {#if reports.isEmpty}
+            <p style="color: #666;">No reports in your team.</p>
+            {#else}
+            <ul class="report-list">
+                {#for report in reports}
+                <li>
+                    <span>{report}</span>
+                    <a href="/users/{report}">View Profile</a>
+                </li>
+                {/for}
+            </ul>
+            {/if}
+        </div>
+        {/if}
     </div>
 </body>
 </html>

@@ -1,0 +1,9 @@
+{
+  "policies": [
+    {
+      "name": "Own User or Same Team Manager Policy",
+      "fileName": "own-user-or-same-team-manager.js",
+      "description": "Grants access if the user is viewing their own profile, or if they are a manager in the same team as the target user"
+    }
+  ]
+}

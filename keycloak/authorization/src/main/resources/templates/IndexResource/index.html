@@ -23,14 +23,14 @@
         <h1>Keycloak Authorization</h1>
         <p class="subtitle">Policy Decision Point Demo</p>
         <div class="description">
-            <p>This demo showcases Keycloak as an Authorization PDP with two protected endpoints:</p>
+            <p>This demo showcases Keycloak as an Authorization PDP:</p>
             <ul>
                 <li><code>/users/&#123;username&#125;</code> &mdash; Accessible if it's your own profile or you have the <strong>manager</strong> role</li>
-                <li><code>/teams/&#123;teamname&#125;</code> &mdash; Requires <strong>manager</strong> role and matching <strong>team</strong> attribute</li>
+                <li>Managers see a <strong>Reports</strong> section listing users in their team</li>
             </ul>
             <p>Log in with Keycloak SSO to get started. You will be redirected to your user profile.</p>
         </div>
-        <a href="/users/me" class="login-btn">Login with Keycloak</a>
+        <a href="/users" class="login-btn">Login with Keycloak</a>
     </div>
 </body>
 </html>

@@ -1,0 +1,38 @@
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  version: default
+  resource: user_profile
+  rules:
+    # Own profile - always allowed
+    - actions:
+        - view
+        - edit
+      effect: EFFECT_ALLOW
+      roles:
+        - "*"
+      condition:
+        match:
+          expr: request.resource.id == request.principal.id
+
+    # Manager in the same team can view team members' profiles
+    - actions:
+        - view
+      effect: EFFECT_ALLOW
+      # Roles must be checked via attr.roles if we want the policy to work with vendor agnostic AuthZen requests
+      # Cerbos supports providing roles natively via properties.cerbos.roles, but this is obviously not vendor agnostic
+      # https://docs.cerbos.dev/cerbos/latest/api/index.html#authzen
+      roles:
+        - "*"
+      condition:
+        match:
+          all:
+            of:
+              - expr: >-
+                  "kc.realm.roles" in request.principal.attr &&
+                  "manager" in request.principal.attr["kc.realm.roles"]
+              - expr: >-
+                  "team" in request.principal.attr &&
+                  "team" in request.resource.attr
+              - expr: >-
+                  request.principal.attr.team == request.resource.attr.team

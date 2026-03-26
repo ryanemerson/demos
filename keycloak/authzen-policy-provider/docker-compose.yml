@@ -1,0 +1,73 @@
+services:
+  cerbos:
+    image: ghcr.io/cerbos/cerbos:latest
+    container_name: cerbos
+    ports:
+      - "3592:3592"
+      - "3593:3593"
+    volumes:
+      - ./cerbos/config:/config
+      - ./cerbos/policies:/policies
+    command: ["server", "--config=/config/config.yaml"]
+    networks:
+      - demo-net
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:nightly
+    container_name: keycloak
+    command:
+      - start
+      - --import-realm
+    environment:
+      KC_DB: dev-file
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_LOG: console
+      KC_LOG_CONSOLE_FORMAT: "%d{HH:mm:ss.SSS} %-5p [%c] %s%e%n"
+      KC_LOG_LEVEL: INFO,com.example.demo.authzen:TRACE
+      JAVA_OPTS_APPEND: "-Djava.net.preferIPv4Stack=true"
+      DEBUG: "true"
+      DEBUG_PORT: "5006"
+    volumes:
+      - ./keycloak/demo-realm.json:/opt/keycloak/data/import/demo-realm.json
+      - ./provider/target/authzen-policy-provider-1.0.0-SNAPSHOT.jar:/opt/keycloak/providers/authzen-policy-provider.jar
+      - ./user-profile-mapper/target/authzen-user-profile-mapper-1.0.0-SNAPSHOT.jar:/opt/keycloak/providers/authzen-user-profile-mapper.jar
+    ports:
+      - "8080:8080"
+      - "5006:5006"
+    networks:
+      - demo-net
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    depends_on:
+      - cerbos
+
+  authorization-demo:
+    container_name: demo
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    environment:
+      QUARKUS_OIDC_AUTH_SERVER_URL: http://keycloak:8080/realms/demo
+      QUARKUS_KEYCLOAK_ADMIN_CLIENT_SERVER_URL: http://keycloak:8080
+      QUARKUS_HTTP_PORT: 8081
+    ports:
+      - "8081:8081"
+      - "5005:5005"
+    networks:
+      - demo-net
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+networks:
+  demo-net:
+    driver: bridge

@@ -1,0 +1,197 @@
+services:
+
+  # ──────────────────────────────────────────────
+  # SPIRE Server
+  # ──────────────────────────────────────────────
+  spire-server:
+    image: ghcr.io/spiffe/spire-server:1.12.0
+    hostname: spire-server
+    command: ["-config", "/opt/spire/conf/server.conf"]
+    volumes:
+      - ./spire/server.conf:/opt/spire/conf/server.conf:ro
+      - spire-server-socket:/run/spire
+    healthcheck:
+      test: ["CMD", "/opt/spire/bin/spire-server", "healthcheck", "-socketPath", "/run/spire/server.sock"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # ──────────────────────────────────────────────
+  # SPIRE Init — registers workloads & generates join token
+  # ──────────────────────────────────────────────
+  spire-init:
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.init
+    command: ["/bin/sh", "/opt/spire/init.sh"]
+    volumes:
+      - ./spire/init.sh:/opt/spire/init.sh:ro
+      - spire-server-socket:/run/spire
+      - spire-join-token:/run/spire/join-token
+    depends_on:
+      spire-server:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────
+  # SPIRE Agent — attests workloads via Docker labels
+  # ──────────────────────────────────────────────
+  spire-agent:
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.agent
+    command: ["/bin/sh", "/opt/spire/agent-entrypoint.sh"]
+    pid: "host"
+    volumes:
+      - ./spire/agent.conf:/opt/spire/conf/agent.conf:ro
+      - ./spire/agent-entrypoint.sh:/opt/spire/agent-entrypoint.sh:ro
+      - spire-agent-socket:/run/spire/sockets
+      - spire-join-token:/run/spire/join-token:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      spire-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # ──────────────────────────────────────────────
+  # java-spiffe-helper for Keycloak — provisions PKCS12 keystores
+  # ──────────────────────────────────────────────
+  java-spiffe-helper-keycloak:
+    image: ghcr.io/spiffe/java-spiffe-helper:0.8.16
+    command: ["-c", "/opt/java-spiffe-helper/helper.properties"]
+    user: "0"
+    labels:
+      spiffe-workload: keycloak
+    volumes:
+      - ./keycloak/java-spiffe-helper.properties:/opt/java-spiffe-helper/helper.properties:ro
+      - spire-agent-socket:/run/spire/sockets:ro
+      - keycloak-certs:/opt/spiffe-certs
+    depends_on:
+      spire-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/opt/spiffe-certs/keystore.p12"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  # ──────────────────────────────────────────────
+  # spiffe-helper for Oracle
+  # ──────────────────────────────────────────────
+  spiffe-helper-oracle:
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.spiffe-helper
+    command: ["-config", "/opt/spiffe-helper/helper.conf"]
+    labels:
+      spiffe-workload: oracle
+    volumes:
+      - ./oracle/spiffe-helper.conf:/opt/spiffe-helper/helper.conf:ro
+      - spire-agent-socket:/run/spire/sockets:ro
+      - oracle-certs:/opt/spiffe-certs
+    depends_on:
+      spire-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/opt/spiffe-certs/server.crt"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  # ──────────────────────────────────────────────
+  # Oracle cert permissions — fix ownership for oracle user (uid 54321)
+  # ──────────────────────────────────────────────
+  oracle-cert-init:
+    image: alpine:3.19
+    command: >
+      sh -c "
+        echo 'Fixing certificate permissions for Oracle user...' &&
+        chown -R 54321:54321 /opt/spiffe-certs &&
+        chmod 640 /opt/spiffe-certs/server.key &&
+        chmod 644 /opt/spiffe-certs/server.crt /opt/spiffe-certs/ca.crt &&
+        echo 'Done.'
+      "
+    volumes:
+      - oracle-certs:/opt/spiffe-certs
+    depends_on:
+      spiffe-helper-oracle:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────
+  # Oracle Database Free 23ai with TCPS (mTLS)
+  # ──────────────────────────────────────────────
+  oracle:
+    build:
+      context: ./oracle
+      dockerfile: Dockerfile
+    hostname: oracle
+    environment:
+      APP_USER: keycloak
+      APP_USER_PASSWORD: keycloak
+      ORACLE_PASSWORD: oracle
+    ports:
+      - "1521:1521"
+      - "2484:2484"
+    volumes:
+      - oracle-certs:/opt/spiffe-certs
+      - oracle-data:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'SELECT 1 FROM DUAL;' | sqlplus -S / as sysdba && lsnrctl status | grep -qi FREEPDB1"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 120s
+    depends_on:
+      oracle-cert-init:
+        condition: service_completed_successfully
+
+  # ──────────────────────────────────────────────
+  # Keycloak nightly — connects to Oracle over TCPS (mTLS)
+  # ──────────────────────────────────────────────
+  keycloak:
+    build:
+      context: ./keycloak
+      dockerfile: Dockerfile.keycloak
+      pull: false
+    hostname: keycloak
+    command: ["start-dev"]
+    environment:
+      KC_DB: oracle
+      KC_DB_URL_HOST: oracle
+      KC_DB_URL_PORT: "2484"
+      KC_DB_URL_DATABASE: FREEPDB1
+      KC_DB_USERNAME: keycloak
+
+      # mTLS — PKCS12 truststore + keystore (both provisioned by java-spiffe-helper)
+      KC_DB_TLS_MODE: verify-server
+      KC_DB_TLS_TRUST_STORE_FILE: /opt/spiffe-certs/truststore.p12
+      KC_DB_TLS_TRUST_STORE_PASSWORD: changeit
+      KC_DB_MTLS_KEY_STORE_FILE: /opt/spiffe-certs/keystore.p12
+      KC_DB_MTLS_KEY_STORE_PASSWORD: changeit
+      KC_DB_MTLS_KEY_STORE_TYPE: PKCS12
+
+      # Dev mode settings
+      KC_HEALTH_ENABLED: "true"
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+      - "9000:9000"
+    volumes:
+      - keycloak-certs:/opt/spiffe-certs
+    depends_on:
+      java-spiffe-helper-keycloak:
+        condition: service_healthy
+      oracle:
+        condition: service_healthy
+
+volumes:
+  spire-server-socket:
+  spire-join-token:
+  spire-agent-socket:
+  keycloak-certs:
+  oracle-certs:
+  oracle-data:

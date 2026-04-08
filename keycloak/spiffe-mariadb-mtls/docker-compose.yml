@@ -1,0 +1,195 @@
+services:
+
+  # ──────────────────────────────────────────────
+  # SPIRE Server
+  # ──────────────────────────────────────────────
+  spire-server:
+    image: ghcr.io/spiffe/spire-server:1.12.0
+    hostname: spire-server
+    command: ["-config", "/opt/spire/conf/server.conf"]
+    volumes:
+      - ./spire/server.conf:/opt/spire/conf/server.conf:ro
+      - spire-server-socket:/run/spire
+    healthcheck:
+      test: ["CMD", "/opt/spire/bin/spire-server", "healthcheck", "-socketPath", "/run/spire/server.sock"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # ──────────────────────────────────────────────
+  # SPIRE Init — registers workloads & generates join token
+  # ──────────────────────────────────────────────
+  spire-init:
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.init
+    command: ["/bin/sh", "/opt/spire/init.sh"]
+    volumes:
+      - ./spire/init.sh:/opt/spire/init.sh:ro
+      - spire-server-socket:/run/spire
+      - spire-join-token:/run/spire/join-token
+    depends_on:
+      spire-server:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────
+  # SPIRE Agent — attests workloads via Docker labels
+  # ──────────────────────────────────────────────
+  spire-agent:
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.agent
+    command: ["/bin/sh", "/opt/spire/agent-entrypoint.sh"]
+    pid: "host"
+    volumes:
+      - ./spire/agent.conf:/opt/spire/conf/agent.conf:ro
+      - ./spire/agent-entrypoint.sh:/opt/spire/agent-entrypoint.sh:ro
+      - spire-agent-socket:/run/spire/sockets
+      - spire-join-token:/run/spire/join-token:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      spire-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # ──────────────────────────────────────────────
+  # java-spiffe-helper for Keycloak — provisions PKCS12 keystores
+  # ──────────────────────────────────────────────
+  java-spiffe-helper-keycloak:
+    image: ghcr.io/spiffe/java-spiffe-helper:0.8.16
+    command: ["-c", "/opt/java-spiffe-helper/helper.properties"]
+    user: "0"
+    labels:
+      spiffe-workload: keycloak
+    volumes:
+      - ./keycloak/java-spiffe-helper.properties:/opt/java-spiffe-helper/helper.properties:ro
+      - spire-agent-socket:/run/spire/sockets:ro
+      - keycloak-certs:/opt/spiffe-certs
+    depends_on:
+      spire-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/opt/spiffe-certs/keystore.p12"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  # ──────────────────────────────────────────────
+  # spiffe-helper for Keycloak — provisions PEM trust bundle
+  # ──────────────────────────────────────────────
+  spiffe-helper-keycloak:
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.spiffe-helper
+    entrypoint: ["/bin/sh", "-c", "umask 0022 && exec /spiffe-helper -config /opt/spiffe-helper/helper.conf"]
+    labels:
+      spiffe-workload: keycloak
+    volumes:
+      - ./keycloak/spiffe-helper.conf:/opt/spiffe-helper/helper.conf:ro
+      - spire-agent-socket:/run/spire/sockets:ro
+      - keycloak-certs:/opt/spiffe-certs
+    depends_on:
+      spire-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/opt/spiffe-certs/bundle.pem"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  # ──────────────────────────────────────────────
+  # spiffe-helper for MariaDB
+  # ──────────────────────────────────────────────
+  spiffe-helper-mariadb:
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.spiffe-helper
+    command: ["-config", "/opt/spiffe-helper/helper.conf"]
+    labels:
+      spiffe-workload: mariadb
+    volumes:
+      - ./mariadb/spiffe-helper.conf:/opt/spiffe-helper/helper.conf:ro
+      - spire-agent-socket:/run/spire/sockets:ro
+      - mariadb-certs:/opt/spiffe-certs
+    depends_on:
+      spire-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/opt/spiffe-certs/server.crt"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  # ──────────────────────────────────────────────
+  # MariaDB with mTLS
+  # ──────────────────────────────────────────────
+  mariadb:
+    build:
+      context: ./mariadb
+      dockerfile: Dockerfile
+    hostname: mariadb
+    entrypoint: ["/usr/local/bin/mariadb-entrypoint.sh"]
+    environment:
+      MARIADB_DATABASE: keycloak
+      MARIADB_USER: keycloak
+      MARIADB_PASSWORD: keycloak  # required by official entrypoint; init.sql recreates user without password
+      MARIADB_ROOT_PASSWORD: root
+    volumes:
+      - mariadb-certs:/opt/spiffe-certs
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      spiffe-helper-mariadb:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────
+  # Keycloak — connects to MariaDB over mTLS
+  # ──────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:nightly
+    hostname: keycloak
+    command: ["start-dev"]
+    environment:
+      KC_DB: mariadb
+      KC_DB_URL_HOST: mariadb
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: keycloak
+
+      # mTLS — PEM trust bundle (spiffe-helper) + PKCS12 keystore (java-spiffe-helper)
+      KC_DB_TLS_MODE: verify-server
+      KC_DB_TLS_TRUST_STORE_FILE: /opt/spiffe-certs/bundle.pem
+      KC_DB_MTLS_KEY_STORE_FILE: /opt/spiffe-certs/keystore.p12
+      KC_DB_MTLS_KEY_STORE_PASSWORD: changeit
+
+      # Dev mode settings
+      KC_HEALTH_ENABLED: "true"
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+      - "9000:9000"
+    volumes:
+      - keycloak-certs:/opt/spiffe-certs
+    depends_on:
+      java-spiffe-helper-keycloak:
+        condition: service_healthy
+      spiffe-helper-keycloak:
+        condition: service_healthy
+      mariadb:
+        condition: service_healthy
+
+volumes:
+  spire-server-socket:
+  spire-join-token:
+  spire-agent-socket:
+  keycloak-certs:
+  mariadb-certs:
+  mariadb-data:

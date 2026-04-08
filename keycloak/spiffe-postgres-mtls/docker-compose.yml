@@ -1,0 +1,169 @@
+services:
+
+  # ──────────────────────────────────────────────
+  # SPIRE Server
+  # ──────────────────────────────────────────────
+  spire-server:
+    image: ghcr.io/spiffe/spire-server:1.12.0
+    hostname: spire-server
+    command: ["-config", "/opt/spire/conf/server.conf"]
+    volumes:
+      - ./spire/server.conf:/opt/spire/conf/server.conf:ro
+      - spire-server-socket:/run/spire
+    healthcheck:
+      test: ["CMD", "/opt/spire/bin/spire-server", "healthcheck", "-socketPath", "/run/spire/server.sock"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # ──────────────────────────────────────────────
+  # SPIRE Init — registers workloads & generates join token
+  # ──────────────────────────────────────────────
+  spire-init:
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.init
+    command: ["/bin/sh", "/opt/spire/init.sh"]
+    volumes:
+      - ./spire/init.sh:/opt/spire/init.sh:ro
+      - spire-server-socket:/run/spire
+      - spire-join-token:/run/spire/join-token
+    depends_on:
+      spire-server:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────
+  # SPIRE Agent — attests workloads via Docker labels
+  # ──────────────────────────────────────────────
+  spire-agent:
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.agent
+    command: ["/bin/sh", "/opt/spire/agent-entrypoint.sh"]
+    pid: "host"
+    volumes:
+      - ./spire/agent.conf:/opt/spire/conf/agent.conf:ro
+      - ./spire/agent-entrypoint.sh:/opt/spire/agent-entrypoint.sh:ro
+      - spire-agent-socket:/run/spire/sockets
+      - spire-join-token:/run/spire/join-token:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      spire-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # ──────────────────────────────────────────────
+  # spiffe-helper for Keycloak
+  # ──────────────────────────────────────────────
+  spiffe-helper-keycloak:
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.helper
+    command: ["-config", "/opt/spiffe-helper/helper.conf"]
+    user: "1000"
+    labels:
+      spiffe-workload: keycloak
+    volumes:
+      - ./keycloak/spiffe-helper.conf:/opt/spiffe-helper/helper.conf:ro
+      - spire-agent-socket:/run/spire/sockets:ro
+      - keycloak-certs:/opt/spiffe-certs
+    depends_on:
+      spire-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/opt/spiffe-certs/bundle.pem"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  # ──────────────────────────────────────────────
+  # spiffe-helper for PostgreSQL
+  # ──────────────────────────────────────────────
+  spiffe-helper-postgres:
+    image: ghcr.io/spiffe/spiffe-helper:0.11.0
+    command: ["-config", "/opt/spiffe-helper/helper.conf"]
+    labels:
+      spiffe-workload: postgres
+    volumes:
+      - ./postgres/spiffe-helper.conf:/opt/spiffe-helper/helper.conf:ro
+      - spire-agent-socket:/run/spire/sockets:ro
+      - postgres-certs:/opt/spiffe-certs
+    depends_on:
+      spire-agent:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────
+  # PostgreSQL 18 with mTLS
+  # ──────────────────────────────────────────────
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    hostname: postgres
+    entrypoint: ["/usr/local/bin/pg-entrypoint.sh"]
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - postgres-certs:/opt/spiffe-certs
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      spiffe-helper-postgres:
+        condition: service_started
+
+  # ──────────────────────────────────────────────
+  # Keycloak nightly — connects to Postgres over mTLS
+  # ──────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:nightly
+    hostname: keycloak
+    command: ["start-dev"]
+    environment:
+      # Database connection with mTLS
+      KC_DB: postgres
+      # Plain connection
+      # KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak"
+
+      # TLS
+      # KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak?ssl=true&sslmode=verify-full&sslrootcert=/opt/spiffe-certs/bundle.pem"
+
+      # mTLS (pemKeyAlgorithm=EC required as SPIRE issues EC keys)
+      KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak?ssl=true&sslmode=verify-full&sslcert=/opt/spiffe-certs/svid.pem&sslkey=/opt/spiffe-certs/svid_key.pem&sslrootcert=/opt/spiffe-certs/bundle.pem&pemKeyAlgorithm=EC"
+      KC_DB_USERNAME: keycloak
+
+      # HTTPS using SPIFFE certs
+      KC_HTTPS_CERTIFICATE_FILE: /opt/spiffe-certs/svid.pem
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/spiffe-certs/svid_key.pem
+
+      # Dev mode settings
+      KC_HEALTH_ENABLED: "true"
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    volumes:
+      - keycloak-certs:/opt/spiffe-certs
+    depends_on:
+      spiffe-helper-keycloak:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+volumes:
+  spire-server-socket:
+  spire-join-token:
+  spire-agent-socket:
+  keycloak-certs:
+  postgres-certs:
+  postgres-data:

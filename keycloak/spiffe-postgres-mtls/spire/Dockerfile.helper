@@ -1,0 +1,5 @@
+FROM ghcr.io/spiffe/spiffe-helper:0.11.0 AS helper
+FROM alpine:3.19
+COPY --from=helper /spiffe-helper /spiffe-helper
+RUN mkdir -p /opt/spiffe-certs && chown 1000:1000 /opt/spiffe-certs
+ENTRYPOINT ["/bin/sh", "-c", "umask 0077 && exec /spiffe-helper \"$@\"", "--"]

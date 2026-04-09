@@ -79,38 +79,17 @@ services:
       retries: 30
 
   # ──────────────────────────────────────────────
-  # spiffe-helper for Keycloak — provisions PEM trust bundle
+  # spiffe-helper for MySQL
   # ──────────────────────────────────────────────
-  spiffe-helper-keycloak:
-    image: ghcr.io/spiffe/spiffe-helper:0.11.0
-    entrypoint: ["/bin/sh", "-c", "umask 0022 && exec /spiffe-helper -config /opt/spiffe-helper/helper.conf"]
-    labels:
-      spiffe-workload: keycloak
-    volumes:
-      - ./keycloak/spiffe-helper.conf:/opt/spiffe-helper/helper.conf:ro
-      - spire-agent-socket:/run/spire/sockets:ro
-      - keycloak-certs:/opt/spiffe-certs
-    depends_on:
-      spire-agent:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "test", "-f", "/opt/spiffe-certs/bundle.pem"]
-      interval: 2s
-      timeout: 2s
-      retries: 30
-
-  # ──────────────────────────────────────────────
-  # spiffe-helper for PostgreSQL
-  # ──────────────────────────────────────────────
-  spiffe-helper-postgres:
+  spiffe-helper-mysql:
     image: ghcr.io/spiffe/spiffe-helper:0.11.0
     command: ["-config", "/opt/spiffe-helper/helper.conf"]
     labels:
-      spiffe-workload: postgres
+      spiffe-workload: mysql
     volumes:
-      - ./postgres/spiffe-helper.conf:/opt/spiffe-helper/helper.conf:ro
+      - ./mysql/spiffe-helper.conf:/opt/spiffe-helper/helper.conf:ro
       - spire-agent-socket:/run/spire/sockets:ro
-      - postgres-certs:/opt/spiffe-certs
+      - mysql-certs:/opt/spiffe-certs
     depends_on:
       spire-agent:
         condition: service_healthy
@@ -121,32 +100,33 @@ services:
       retries: 30
 
   # ──────────────────────────────────────────────
-  # PostgreSQL 18 with mTLS
+  # MySQL 8.4 with mTLS
   # ──────────────────────────────────────────────
-  postgres:
+  mysql:
     build:
-      context: ./postgres
+      context: ./mysql
       dockerfile: Dockerfile
-    hostname: postgres
-    entrypoint: ["/usr/local/bin/pg-entrypoint.sh"]
+    hostname: mysql
+    entrypoint: ["/usr/local/bin/mysql-entrypoint.sh"]
     environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak
+      MYSQL_DATABASE: keycloak
+      MYSQL_USER: keycloak
+      MYSQL_PASSWORD: keycloak  # required by official entrypoint; init.sql recreates user without password
+      MYSQL_ROOT_PASSWORD: root
     volumes:
-      - postgres-certs:/opt/spiffe-certs
-      - postgres-data:/var/lib/postgresql
+      - mysql-certs:/opt/spiffe-certs
+      - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 3s
       retries: 30
     depends_on:
-      spiffe-helper-postgres:
+      spiffe-helper-mysql:
         condition: service_healthy
 
   # ──────────────────────────────────────────────
-  # Keycloak nightly — connects to Postgres over mTLS
+  # Keycloak nightly — connects to MySQL over mTLS
   # ──────────────────────────────────────────────
   keycloak:
     image: quay.io/keycloak/keycloak:nightly
@@ -154,10 +134,8 @@ services:
     command: ["start-dev"]
     environment:
       # Database connection with mTLS
-      KC_DB: postgres
-
-      # mTLS via PKCS12 keystore (provisioned by java-spiffe-helper) and PEM trust bundle (provisioned by spiffe-helper)
-      KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak?ssl=true&sslmode=verify-full&sslkey=/opt/spiffe-certs/keystore.p12&sslpassword=changeit&sslrootcert=/opt/spiffe-certs/bundle.pem"
+      KC_DB: mysql
+      KC_DB_URL: "jdbc:mysql://mysql:3306/keycloak?sslMode=VERIFY_CA&trustCertificateKeyStoreUrl=file:///opt/spiffe-certs/truststore.p12&trustCertificateKeyStoreType=PKCS12&trustCertificateKeyStorePassword=changeit&clientCertificateKeyStoreUrl=file:///opt/spiffe-certs/keystore.p12&clientCertificateKeyStoreType=PKCS12&clientCertificateKeyStorePassword=changeit"
       KC_DB_USERNAME: keycloak
 
       # Dev mode settings
@@ -171,9 +149,7 @@ services:
     depends_on:
       java-spiffe-helper-keycloak:
         condition: service_healthy
-      spiffe-helper-keycloak:
-        condition: service_healthy
-      postgres:
+      mysql:
         condition: service_healthy
 
 volumes:
@@ -181,5 +157,5 @@ volumes:
   spire-join-token:
   spire-agent-socket:
   keycloak-certs:
-  postgres-certs:
-  postgres-data:
+  mysql-certs:
+  mysql-data:

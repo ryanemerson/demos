@@ -79,38 +79,17 @@ services:
       retries: 30
 
   # ──────────────────────────────────────────────
-  # spiffe-helper for Keycloak — provisions PEM trust bundle
+  # spiffe-helper for Oracle
   # ──────────────────────────────────────────────
-  spiffe-helper-keycloak:
-    image: ghcr.io/spiffe/spiffe-helper:0.11.0
-    entrypoint: ["/bin/sh", "-c", "umask 0022 && exec /spiffe-helper -config /opt/spiffe-helper/helper.conf"]
-    labels:
-      spiffe-workload: keycloak
-    volumes:
-      - ./keycloak/spiffe-helper.conf:/opt/spiffe-helper/helper.conf:ro
-      - spire-agent-socket:/run/spire/sockets:ro
-      - keycloak-certs:/opt/spiffe-certs
-    depends_on:
-      spire-agent:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "test", "-f", "/opt/spiffe-certs/bundle.pem"]
-      interval: 2s
-      timeout: 2s
-      retries: 30
-
-  # ──────────────────────────────────────────────
-  # spiffe-helper for PostgreSQL
-  # ──────────────────────────────────────────────
-  spiffe-helper-postgres:
+  spiffe-helper-oracle:
     image: ghcr.io/spiffe/spiffe-helper:0.11.0
     command: ["-config", "/opt/spiffe-helper/helper.conf"]
     labels:
-      spiffe-workload: postgres
+      spiffe-workload: oracle
     volumes:
-      - ./postgres/spiffe-helper.conf:/opt/spiffe-helper/helper.conf:ro
+      - ./oracle/spiffe-helper.conf:/opt/spiffe-helper/helper.conf:ro
       - spire-agent-socket:/run/spire/sockets:ro
-      - postgres-certs:/opt/spiffe-certs
+      - oracle-certs:/opt/spiffe-certs
     depends_on:
       spire-agent:
         condition: service_healthy
@@ -121,44 +100,69 @@ services:
       retries: 30
 
   # ──────────────────────────────────────────────
-  # PostgreSQL 18 with mTLS
+  # Oracle cert permissions — fix ownership for oracle user (uid 54321)
   # ──────────────────────────────────────────────
-  postgres:
-    build:
-      context: ./postgres
-      dockerfile: Dockerfile
-    hostname: postgres
-    entrypoint: ["/usr/local/bin/pg-entrypoint.sh"]
-    environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak
+  oracle-cert-init:
+    image: alpine:3.19
+    command: >
+      sh -c "
+        echo 'Fixing certificate permissions for Oracle user...' &&
+        chown -R 54321:54321 /opt/spiffe-certs &&
+        chmod 640 /opt/spiffe-certs/server.key &&
+        chmod 644 /opt/spiffe-certs/server.crt /opt/spiffe-certs/ca.crt &&
+        echo 'Done.'
+      "
     volumes:
-      - postgres-certs:/opt/spiffe-certs
-      - postgres-data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
+      - oracle-certs:/opt/spiffe-certs
     depends_on:
-      spiffe-helper-postgres:
+      spiffe-helper-oracle:
         condition: service_healthy
 
   # ──────────────────────────────────────────────
-  # Keycloak nightly — connects to Postgres over mTLS
+  # Oracle Database Free 23ai with TCPS (mTLS)
+  # ──────────────────────────────────────────────
+  oracle:
+    build:
+      context: ./oracle
+      dockerfile: Dockerfile
+    hostname: oracle
+    environment:
+      APP_USER: keycloak
+      APP_USER_PASSWORD: keycloak
+      ORACLE_PASSWORD: oracle
+    ports:
+      - "1521:1521"
+      - "2484:2484"
+    volumes:
+      - oracle-certs:/opt/spiffe-certs
+      - oracle-data:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'SELECT 1 FROM DUAL;' | sqlplus -S / as sysdba && lsnrctl status | grep -qi FREEPDB1"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 120s
+    depends_on:
+      oracle-cert-init:
+        condition: service_completed_successfully
+
+  # ──────────────────────────────────────────────
+  # Keycloak nightly — connects to Oracle over TCPS (mTLS)
   # ──────────────────────────────────────────────
   keycloak:
-    image: quay.io/keycloak/keycloak:nightly
+    build:
+      context: ./keycloak
+      dockerfile: Dockerfile.keycloak
     hostname: keycloak
     command: ["start-dev"]
     environment:
-      # Database connection with mTLS
-      KC_DB: postgres
-
-      # mTLS via PKCS12 keystore (provisioned by java-spiffe-helper) and PEM trust bundle (provisioned by spiffe-helper)
-      KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak?ssl=true&sslmode=verify-full&sslkey=/opt/spiffe-certs/keystore.p12&sslpassword=changeit&sslrootcert=/opt/spiffe-certs/bundle.pem"
+      # Database connection with mTLS via TCPS
+      KC_DB: oracle
+      KC_DB_URL: "jdbc:oracle:thin:@tcps://oracle:2484/FREEPDB1"
       KC_DB_USERNAME: keycloak
+
+      # Java SSL properties for Oracle JDBC driver mTLS + SSL certificate-based authentication
+      JAVA_OPTS_APPEND: "-Djavax.net.ssl.trustStore=/opt/spiffe-certs/truststore.p12 -Djavax.net.ssl.trustStorePassword=changeit -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.keyStore=/opt/spiffe-certs/keystore.p12 -Djavax.net.ssl.keyStorePassword=changeit -Djavax.net.ssl.keyStoreType=PKCS12 -Doracle.net.authentication_services=(TCPS)"
 
       # Dev mode settings
       KC_HEALTH_ENABLED: "true"
@@ -171,9 +175,7 @@ services:
     depends_on:
       java-spiffe-helper-keycloak:
         condition: service_healthy
-      spiffe-helper-keycloak:
-        condition: service_healthy
-      postgres:
+      oracle:
         condition: service_healthy
 
 volumes:
@@ -181,5 +183,5 @@ volumes:
   spire-join-token:
   spire-agent-socket:
   keycloak-certs:
-  postgres-certs:
-  postgres-data:
+  oracle-certs:
+  oracle-data:

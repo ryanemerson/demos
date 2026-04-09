@@ -19,23 +19,26 @@ use mTLS.
 └────────┬───────────────────────────────┬────────────────────────┘
          │                               │
 ┌────────▼─────────┐           ┌─────────▼────────┐
-│ spiffe-helper    │           │ spiffe-helper     │
-│ (keycloak)       │           │ (postgres)        │
-│                  │           │                   │
-│ svid.pem         │           │ server.crt        │
-│ svid_key.pem     │           │ server.key        │
-│ bundle.pem       │           │ ca.crt            │
+│ java-spiffe-     │           │ spiffe-helper     │
+│ helper           │           │ (postgres)        │
+│ (keycloak)       │           │                   │
+│                  │           │ server.crt        │
+│ keystore.p12     │           │ server.key        │
+│ truststore.p12   │           │ ca.crt            │
 └────────┬─────────┘           └─────────┬─────────┘
          │ shared volume                 │ shared volume
-┌────────▼─────────┐           ┌─────────▼────────┐
-│ keycloak-cert-   │           │                   │
-│ init (PEM→DER)   │           │                   │
-└────────┬─────────┘           │                   │
-         │ svid_key.der        │                   │
+         │                               │
+┌────────▼─────────┐                     │
+│ spiffe-helper    │                     │
+│ (keycloak)       │                     │
+│                  │                     │
+│ bundle.pem       │                     │
+└────────┬─────────┘                     │
+         │                               │
 ┌────────▼─────────┐           ┌─────────▼────────┐
 │   Keycloak       │◄── mTLS ──►  PostgreSQL 18   │
 │   (nightly)      │           │                   │
-│   :8080 / :8443  │           │   :5432           │
+│   :8080          │           │   :5432           │
 └──────────────────┘           └───────────────────┘
 ```
 
@@ -51,16 +54,25 @@ use mTLS.
 1. **SPIRE Server** issues X.509 SVIDs for registered workloads
 2. **SPIRE Init** generates a join token, then registers workload entries using the agent's SPIFFE ID as parent
 3. **SPIRE Agent** boots with the join token and attests containers via Docker labels (`spiffe-workload: <name>`)
-4. **spiffe-helper** sidecars fetch SVIDs and write certs to shared Docker volumes
-5. **keycloak-cert-init** converts the Keycloak SVID private key from PEM to PKCS8 DER format (required by the PostgreSQL JDBC driver)
-6. **PostgreSQL** starts with SSL enabled, requiring client certificates signed by the SPIFFE trust bundle (`clientcert=verify-ca`). Plain TCP and TLS-without-client-cert connections are explicitly rejected
-7. **Keycloak** connects to PostgreSQL using its SVID as the client cert with `sslmode=verify-full`, verifying the server's certificate hostname matches — establishing mutual TLS
+4. **spiffe-helper** (Go) sidecar fetches PostgreSQL's SVID and writes PEM certs to a shared Docker volume. A second spiffe-helper instance fetches Keycloak's trust bundle as PEM (required by the PostgreSQL JDBC driver's `sslrootcert` parameter, which only supports PEM format)
+5. **java-spiffe-helper** sidecar fetches Keycloak's SVID and provisions PKCS12 keystores (`keystore.p12` and `truststore.p12`) directly from the SPIFFE Workload API
+6. **PostgreSQL** starts with SSL enabled, requiring client certificates signed by the SPIFFE trust bundle. Plain TCP and TLS-without-client-cert connections are explicitly rejected via `pg_hba.conf`
+7. **Keycloak** connects to PostgreSQL using the PKCS12 keystore as the client certificate via `sslkey`, with `sslrootcert` pointing to the PEM trust bundle and `sslmode=verify-full` — establishing mutual TLS
+
+## PostgreSQL JDBC SSL Configuration
+
+The PostgreSQL JDBC driver has specific requirements for SSL parameters:
+
+- **`sslkey`** — Supports PKCS12 (`.p12`) keystores for client certificate authentication. The driver's `PKCS12KeyManager` expects the key alias to be `user`
+- **`sslpassword`** — Password for the PKCS12 keystore
+- **`sslrootcert`** — Only supports PEM format (not PKCS12), which is why a Go spiffe-helper sidecar provides `bundle.pem` alongside the java-spiffe-helper's PKCS12 stores
+- **`sslmode=verify-full`** — Verifies the server certificate hostname matches
 
 ## PostgreSQL mTLS Enforcement
 
 PostgreSQL is configured via `pg_hba.conf` to enforce mTLS on all TCP connections:
 
-- **`hostssl ... scram-sha-256 clientcert=verify-ca`** — Accepts only SSL connections where the client presents a certificate signed by the SPIFFE trust bundle
+- **`hostssl ... cert`** — Accepts only SSL connections where the client presents a certificate signed by the SPIFFE trust bundle, with the certificate CN matching the database username
 - **`hostnossl ... reject`** — Explicitly rejects any plain (non-SSL) TCP connection
 - **`local ... trust`** — Allows Unix socket connections for the in-container healthcheck only
 
@@ -75,22 +87,24 @@ Wait for all services to start (takes ~30-60 seconds for SPIRE bootstrapping and
 ### Access Keycloak
 
 - **HTTP:**  http://localhost:8080
-- **HTTPS:** https://localhost:8443 (SPIFFE-issued certificate)
 - **Admin:** `admin` / `admin`
 
 ## Testing Connection Modes
 
-The `KC_DB_URL` in `docker-compose.yml` includes three connection modes you can toggle to verify PostgreSQL's mTLS enforcement:
+The `KC_DB_URL` in `docker-compose.yml` includes commented connection modes you can toggle to verify PostgreSQL's mTLS enforcement:
 
 ```yaml
 # Plain connection — no SSL (rejected by hostnossl rule)
 # KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak"
 
-# TLS only — server cert verified, but no client cert (rejected by clientcert=verify-ca)
+# TLS only — server cert verified, but no client cert (rejected by cert rule)
 # KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak?ssl=true&sslmode=verify-full&sslrootcert=/opt/spiffe-certs/bundle.pem"
 
-# mTLS — full mutual TLS with SPIFFE certificates (accepted)
-KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak?ssl=true&sslmode=verify-full&sslcert=/opt/spiffe-certs/svid.pem&sslkey=/opt/spiffe-certs/svid_key.der&sslrootcert=/opt/spiffe-certs/bundle.pem&sslkeytype=DER"
+# mTLS via PEM (requires spiffe-helper PEM output + DER key conversion)
+# KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak?ssl=true&sslmode=verify-full&sslcert=/opt/spiffe-certs/svid.pem&sslkey=/opt/spiffe-certs/svid_key.pem&sslrootcert=/opt/spiffe-certs/bundle.pem&pemKeyAlgorithm=EC"
+
+# mTLS via PKCS12 keystore (provisioned by java-spiffe-helper) and PEM trust bundle (provisioned by spiffe-helper)
+KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak?ssl=true&sslmode=verify-full&sslkey=/opt/spiffe-certs/keystore.p12&sslpassword=changeit&sslrootcert=/opt/spiffe-certs/bundle.pem"
 ```
 
 Uncomment the desired mode and restart Keycloak to test:
@@ -101,30 +115,30 @@ docker compose up -d --force-recreate keycloak
 
 ## Verify mTLS
 
-Check that PostgreSQL is enforcing SSL with client certs:
+Check that PostgreSQL shows SSL connections with client certificates:
 
 ```bash
-docker compose exec postgres psql -U keycloak -c "SELECT ssl, client_serial FROM pg_stat_ssl WHERE pid = pg_backend_pid();"
+docker compose exec postgres psql -U keycloak -c "SELECT ssl, client_serial, client_dn FROM pg_stat_ssl WHERE ssl = true;"
 ```
 
-Check Keycloak logs for successful database connection:
+Check Keycloak logs for successful startup:
 
 ```bash
-docker compose logs keycloak | grep -i "database"
+docker compose logs keycloak | grep -i "started"
 ```
 
 ## Services
 
-| Container                | Image                                    | Purpose                                       |
-|--------------------------|------------------------------------------|-----------------------------------------------|
-| `spire-server`           | `ghcr.io/spiffe/spire-server:1.12.0`     | SPIFFE identity control plane                 |
-| `spire-init`             | Custom (Alpine + spire-server CLI)       | Generates join token, registers workloads     |
-| `spire-agent`            | Custom (Alpine + spire-agent)            | Attests Docker workloads                      |
-| `spiffe-helper-keycloak` | Custom (Alpine + spiffe-helper)          | Fetches/rotates Keycloak SVID                 |
-| `spiffe-helper-postgres` | Custom (Alpine + spiffe-helper)          | Fetches/rotates PostgreSQL SVID               |
-| `keycloak-cert-init`     | `alpine:3.19`                            | Converts SVID key PEM to PKCS8 DER for JDBC   |
-| `postgres`               | `postgres:18` (custom entrypoint)        | Database with mTLS enforcement                |
-| `keycloak`               | `quay.io/keycloak/keycloak:nightly`      | Identity server, mTLS client to Postgres      |
+| Container                      | Image                                    | Purpose                                       |
+|--------------------------------|------------------------------------------|-----------------------------------------------|
+| `spire-server`                 | `ghcr.io/spiffe/spire-server:1.12.0`     | SPIFFE identity control plane                 |
+| `spire-init`                   | Custom (Alpine + spire-server CLI)       | Generates join token, registers workloads     |
+| `spire-agent`                  | Custom (Alpine + spire-agent)            | Attests Docker workloads                      |
+| `java-spiffe-helper-keycloak`  | `ghcr.io/spiffe/java-spiffe-helper:0.8.16` | Provisions PKCS12 keystores for Keycloak    |
+| `spiffe-helper-keycloak`       | `ghcr.io/spiffe/spiffe-helper:0.11.0`   | Fetches PEM trust bundle for Keycloak         |
+| `spiffe-helper-postgres`       | `ghcr.io/spiffe/spiffe-helper:0.11.0`   | Fetches/rotates PostgreSQL SVID               |
+| `postgres`                     | `postgres:18` (custom entrypoint)        | Database with mTLS enforcement                |
+| `keycloak`                     | `quay.io/keycloak/keycloak:nightly`      | Identity server, mTLS client to Postgres      |
 
 ## Cleanup
 

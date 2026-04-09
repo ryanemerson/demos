@@ -1,12 +1,6 @@
 #!/bin/bash
 set -e
 
-echo "Waiting for SPIFFE certificates to be provisioned..."
-while [ ! -f /opt/spiffe-certs/server.crt ] || [ ! -f /opt/spiffe-certs/server.key ] || [ ! -f /opt/spiffe-certs/ca.crt ]; do
-    sleep 1
-done
-echo "SPIFFE certificates found. Starting PostgreSQL with SSL..."
-
 # Ensure correct permissions on certs
 chmod 600 /opt/spiffe-certs/server.key
 chmod 644 /opt/spiffe-certs/server.crt /opt/spiffe-certs/ca.crt

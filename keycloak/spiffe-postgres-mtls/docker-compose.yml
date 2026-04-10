@@ -149,16 +149,20 @@ services:
   # Keycloak nightly — connects to Postgres over mTLS
   # ──────────────────────────────────────────────
   keycloak:
-    image: quay.io/keycloak/keycloak:nightly
+    image: localhost/keycloak:0.0.1-cb1300
     hostname: keycloak
     command: ["start-dev"]
     environment:
-      # Database connection with mTLS
       KC_DB: postgres
-
-      # mTLS via PKCS12 keystore (provisioned by java-spiffe-helper) and PEM trust bundle (provisioned by spiffe-helper)
-      KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak?ssl=true&sslmode=verify-full&sslkey=/opt/spiffe-certs/keystore.p12&sslpassword=changeit&sslrootcert=/opt/spiffe-certs/bundle.pem"
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_DATABASE: keycloak
       KC_DB_USERNAME: keycloak
+
+      # mTLS — PEM trust bundle (spiffe-helper) + PKCS12 keystore (java-spiffe-helper)
+      KC_DB_TLS_MODE: verify-server
+      KC_DB_TLS_TRUST_STORE_FILE: /opt/spiffe-certs/bundle.pem
+      KC_DB_MTLS_KEY_STORE_FILE: /opt/spiffe-certs/keystore.p12
+      KC_DB_MTLS_KEY_STORE_PASSWORD: changeit
 
       # Dev mode settings
       KC_HEALTH_ENABLED: "true"
@@ -166,6 +170,7 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: admin
     ports:
       - "8080:8080"
+      - "9000:9000"
     volumes:
       - keycloak-certs:/opt/spiffe-certs
     depends_on:

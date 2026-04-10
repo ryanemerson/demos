@@ -128,17 +128,26 @@ services:
   # Keycloak nightly — connects to MSSQL over TLS
   # ──────────────────────────────────────────────
   keycloak:
-    image: quay.io/keycloak/keycloak:nightly
+    image: localhost/keycloak:0.0.1-cb1300
     hostname: keycloak
     command: ["start-dev"]
     environment:
-      # Database connection with TLS
       KC_DB: mssql
-      KC_DB_URL: "jdbc:sqlserver://mssql:1433;databaseName=keycloak;encrypt=true;trustServerCertificate=false;trustStore=/opt/spiffe-certs/truststore.p12;trustStorePassword=changeit;trustStoreType=PKCS12"
+      KC_DB_URL_HOST: mssql
+      KC_DB_URL_DATABASE: keycloak
       KC_DB_USERNAME: keycloak
       # SQL Server has no certificate-based login authentication — passwords are always required.
-      # TLS client certificates are used for transport security only, not for user authentication.
       KC_DB_PASSWORD: "Keycloak1!"
+
+      # mTLS — PKCS12 truststore + keystore (both provisioned by java-spiffe-helper)
+      KC_DB_TLS_MODE: verify-server
+      KC_DB_TLS_TRUST_STORE_FILE: /opt/spiffe-certs/truststore.p12
+      KC_DB_TLS_TRUST_STORE_PASSWORD: changeit
+      KC_DB_MTLS_KEY_STORE_FILE: /opt/spiffe-certs/keystore.p12
+      KC_DB_MTLS_KEY_STORE_PASSWORD: changeit
+
+      # TLS handshake debugging — look for "CertificateRequest" and "Certificate" messages to verify mTLS
+      JAVA_OPTS_APPEND: "-Djavax.net.debug=ssl:handshake"
 
       # Dev mode settings
       KC_HEALTH_ENABLED: "true"
@@ -146,6 +155,7 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: admin
     ports:
       - "8080:8080"
+      - "9000:9000"
     volumes:
       - keycloak-certs:/opt/spiffe-certs
     depends_on:

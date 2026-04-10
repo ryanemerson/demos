@@ -153,16 +153,23 @@ services:
     build:
       context: ./keycloak
       dockerfile: Dockerfile.keycloak
+      pull: false
     hostname: keycloak
     command: ["start-dev"]
     environment:
-      # Database connection with mTLS via TCPS
       KC_DB: oracle
-      KC_DB_URL: "jdbc:oracle:thin:@tcps://oracle:2484/FREEPDB1"
+      KC_DB_URL_HOST: oracle
+      KC_DB_URL_PORT: "2484"
+      KC_DB_URL_DATABASE: FREEPDB1
       KC_DB_USERNAME: keycloak
 
-      # Java SSL properties for Oracle JDBC driver mTLS + SSL certificate-based authentication
-      JAVA_OPTS_APPEND: "-Djavax.net.ssl.trustStore=/opt/spiffe-certs/truststore.p12 -Djavax.net.ssl.trustStorePassword=changeit -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.keyStore=/opt/spiffe-certs/keystore.p12 -Djavax.net.ssl.keyStorePassword=changeit -Djavax.net.ssl.keyStoreType=PKCS12 -Doracle.net.authentication_services=(TCPS)"
+      # mTLS — PKCS12 truststore + keystore (both provisioned by java-spiffe-helper)
+      KC_DB_TLS_MODE: verify-server
+      KC_DB_TLS_TRUST_STORE_FILE: /opt/spiffe-certs/truststore.p12
+      KC_DB_TLS_TRUST_STORE_PASSWORD: changeit
+      KC_DB_MTLS_KEY_STORE_FILE: /opt/spiffe-certs/keystore.p12
+      KC_DB_MTLS_KEY_STORE_PASSWORD: changeit
+      KC_DB_MTLS_KEY_STORE_TYPE: PKCS12
 
       # Dev mode settings
       KC_HEALTH_ENABLED: "true"
@@ -170,6 +177,7 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: admin
     ports:
       - "8080:8080"
+      - "9000:9000"
     volumes:
       - keycloak-certs:/opt/spiffe-certs
     depends_on:

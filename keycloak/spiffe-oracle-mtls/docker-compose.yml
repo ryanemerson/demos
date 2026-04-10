@@ -82,7 +82,9 @@ services:
   # spiffe-helper for Oracle
   # ──────────────────────────────────────────────
   spiffe-helper-oracle:
-    image: ghcr.io/spiffe/spiffe-helper:0.11.0
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.spiffe-helper
     command: ["-config", "/opt/spiffe-helper/helper.conf"]
     labels:
       spiffe-workload: oracle

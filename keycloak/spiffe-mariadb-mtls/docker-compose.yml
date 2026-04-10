@@ -82,7 +82,9 @@ services:
   # spiffe-helper for Keycloak — provisions PEM trust bundle
   # ──────────────────────────────────────────────
   spiffe-helper-keycloak:
-    image: ghcr.io/spiffe/spiffe-helper:0.11.0
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.spiffe-helper
     entrypoint: ["/bin/sh", "-c", "umask 0022 && exec /spiffe-helper -config /opt/spiffe-helper/helper.conf"]
     labels:
       spiffe-workload: keycloak
@@ -103,7 +105,9 @@ services:
   # spiffe-helper for MariaDB
   # ──────────────────────────────────────────────
   spiffe-helper-mariadb:
-    image: ghcr.io/spiffe/spiffe-helper:0.11.0
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.spiffe-helper
     command: ["-config", "/opt/spiffe-helper/helper.conf"]
     labels:
       spiffe-workload: mariadb
@@ -138,7 +142,7 @@ services:
       - mariadb-certs:/opt/spiffe-certs
       - mariadb-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -150,7 +154,7 @@ services:
   # Keycloak — connects to MariaDB over mTLS
   # ──────────────────────────────────────────────
   keycloak:
-    image: localhost/keycloak:0.0.1-cb1300
+    image: quay.io/remerson/keycloak:0.0.1-03d8c4
     hostname: keycloak
     command: ["start-dev"]
     environment:

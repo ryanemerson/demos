@@ -82,7 +82,9 @@ services:
   # spiffe-helper for Keycloak — provisions PEM trust bundle
   # ──────────────────────────────────────────────
   spiffe-helper-keycloak:
-    image: ghcr.io/spiffe/spiffe-helper:0.11.0
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.spiffe-helper
     entrypoint: ["/bin/sh", "-c", "umask 0022 && exec /spiffe-helper -config /opt/spiffe-helper/helper.conf"]
     labels:
       spiffe-workload: keycloak
@@ -103,7 +105,9 @@ services:
   # spiffe-helper for PostgreSQL
   # ──────────────────────────────────────────────
   spiffe-helper-postgres:
-    image: ghcr.io/spiffe/spiffe-helper:0.11.0
+    build:
+      context: ./spire
+      dockerfile: Dockerfile.spiffe-helper
     command: ["-config", "/opt/spiffe-helper/helper.conf"]
     labels:
       spiffe-workload: postgres
@@ -149,7 +153,7 @@ services:
   # Keycloak nightly — connects to Postgres over mTLS
   # ──────────────────────────────────────────────
   keycloak:
-    image: localhost/keycloak:0.0.1-cb1300
+    image: quay.io/remerson/keycloak:0.0.1-03d8c4
     hostname: keycloak
     command: ["start-dev"]
     environment:

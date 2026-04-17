@@ -130,7 +130,7 @@ services:
   # Keycloak nightly — connects to MSSQL over TLS
   # ──────────────────────────────────────────────
   keycloak:
-    image: quay.io/remerson/keycloak:0.0.1-03d8c4
+    image: quay.io/keycloak/keycloak:nightly
     hostname: keycloak
     command: ["start-dev"]
     environment:

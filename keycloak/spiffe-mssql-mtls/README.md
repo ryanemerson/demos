@@ -50,7 +50,7 @@ directly from the SPIFFE Workload API for Keycloak's JDBC connection.
 4. **spiffe-helper** (Go) sidecar fetches SQL Server's SVID and writes PEM certs to a shared Docker volume
 5. **java-spiffe-helper** sidecar fetches Keycloak's SVID and provisions PKCS12 keystores (`keystore.p12` and `truststore.p12`) directly from the SPIFFE Workload API
 6. **SQL Server** starts with a custom entrypoint that writes `mssql.conf` with TLS settings (`tlscert`, `tlskey`, `forceencryption = 1`), creates the `keycloak` database, login, and user, then waits on the SQL Server process
-7. **Keycloak** connects to SQL Server using `encrypt=true` with `trustServerCertificate=false` and a PKCS12 truststore containing the SPIFFE trust bundle for server certificate verification
+7. **Keycloak** connects to SQL Server using Keycloak's native `KC_DB_TLS_*` and `KC_DB_MTLS_*` environment variables — the PKCS12 truststore for server certificate verification and the PKCS12 keystore for client certificate presentation. Note: SQL Server does not support certificate-based login authentication, so passwords are always required
 
 ## SQL Server TLS Enforcement
 

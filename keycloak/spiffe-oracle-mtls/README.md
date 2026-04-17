@@ -1,12 +1,12 @@
 # SPIFFE/SPIRE mTLS: Keycloak + Oracle Demo
 
 Demonstrates using SPIFFE/SPIRE to provision X.509 SVID certificates via
-spiffe-helper sidecars, enabling **mutual TLS** between Keycloak (nightly) and
+spiffe-helper sidecars, enabling **mutual TLS** between Keycloak and
 Oracle Database Free 23ai. Oracle is configured with a TCPS listener on port
 2484 using an Oracle wallet built from SPIFFE certificates. The java-spiffe-helper
 provisions PKCS12 keystores directly from the SPIFFE Workload API, and Keycloak
-connects via the Oracle thin JDBC driver with Java SSL properties for client
-certificate authentication.
+connects via the Oracle thin JDBC driver using Keycloak's native `KC_DB_*`
+environment variables for TLS truststore and mTLS keystore configuration.
 
 ## Architecture
 
@@ -64,7 +64,7 @@ certificate authentication.
    - Configures `sqlnet.ora` for TCPS with `SSL_CLIENT_AUTHENTICATION = TRUE`
    - Configures `listener.ora` with a TCPS endpoint on port 2484
    - Restarts the listener to activate TCPS
-8. **Keycloak** connects to Oracle via `jdbc:oracle:thin:@tcps://oracle:2484/FREEPDB1` with `JAVA_OPTS_APPEND` providing `javax.net.ssl.*` system properties pointing to the PKCS12 keystore and truststore. The Oracle SVID includes a `dns:oracle` SAN matching the JDBC hostname, so server DN matching succeeds — establishing mutual TLS
+8. **Keycloak** connects to Oracle via `jdbc:oracle:thin:@tcps://oracle:2484/FREEPDB1` using Keycloak's native `KC_DB_TLS_*` and `KC_DB_MTLS_*` environment variables pointing to the PKCS12 truststore and keystore. The Oracle SVID includes a `dns:oracle` SAN matching the JDBC hostname, so server DN matching succeeds — establishing mutual TLS
 
 ## Oracle TCPS Configuration
 

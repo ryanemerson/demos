@@ -51,7 +51,7 @@ connection.
 4. **spiffe-helper** (Go) sidecar fetches MySQL's SVID and writes PEM certs to a shared Docker volume
 5. **java-spiffe-helper** sidecar fetches Keycloak's SVID and provisions PKCS12 keystores (`keystore.p12` and `truststore.p12`) directly from the SPIFFE Workload API
 6. **MySQL** starts with `--require-secure-transport=ON` and `--ssl-ca/cert/key` flags pointing to its SPIFFE certificates. An init script runs `ALTER USER 'keycloak'@'%' REQUIRE X509` to enforce client certificate authentication
-7. **Keycloak** connects to MySQL using `sslMode=VERIFY_CA` with the PKCS12 truststore for CA verification and the PKCS12 keystore for client certificate authentication — establishing mutual TLS
+7. **Keycloak** connects to MySQL using Keycloak's native `KC_DB_TLS_*` and `KC_DB_MTLS_*` environment variables — the PKCS12 truststore for CA verification and the PKCS12 keystore for client certificate authentication — establishing mutual TLS
 
 ## MySQL mTLS Enforcement
 

@@ -57,16 +57,11 @@ use mTLS.
 4. **spiffe-helper** (Go) sidecar fetches PostgreSQL's SVID and writes PEM certs to a shared Docker volume. A second spiffe-helper instance fetches Keycloak's trust bundle as PEM (required by the PostgreSQL JDBC driver's `sslrootcert` parameter, which only supports PEM format)
 5. **java-spiffe-helper** sidecar fetches Keycloak's SVID and provisions PKCS12 keystores (`keystore.p12` and `truststore.p12`) directly from the SPIFFE Workload API
 6. **PostgreSQL** starts with SSL enabled, requiring client certificates signed by the SPIFFE trust bundle. Plain TCP and TLS-without-client-cert connections are explicitly rejected via `pg_hba.conf`
-7. **Keycloak** connects to PostgreSQL using the PKCS12 keystore as the client certificate via `sslkey`, with `sslrootcert` pointing to the PEM trust bundle and `sslmode=verify-full` — establishing mutual TLS
+7. **Keycloak** connects to PostgreSQL using Keycloak's native `KC_DB_TLS_*` and `KC_DB_MTLS_*` environment variables — the PEM trust bundle (`bundle.pem`) for server certificate verification and the PKCS12 keystore (`keystore.p12`) for client certificate authentication — establishing mutual TLS
 
-## PostgreSQL JDBC SSL Configuration
+## PostgreSQL TLS Trust Bundle
 
-The PostgreSQL JDBC driver has specific requirements for SSL parameters:
-
-- **`sslkey`** — Supports PKCS12 (`.p12`) keystores for client certificate authentication. The driver's `PKCS12KeyManager` expects the key alias to be `user`
-- **`sslpassword`** — Password for the PKCS12 keystore
-- **`sslrootcert`** — Only supports PEM format (not PKCS12), which is why a Go spiffe-helper sidecar provides `bundle.pem` alongside the java-spiffe-helper's PKCS12 stores
-- **`sslmode=verify-full`** — Verifies the server certificate hostname matches
+The PostgreSQL JDBC driver's `sslrootcert` parameter only supports PEM format (not PKCS12). This is why a Go spiffe-helper sidecar provides `bundle.pem` alongside the java-spiffe-helper's PKCS12 stores. Keycloak references this PEM bundle via `KC_DB_TLS_TRUST_STORE_FILE`. The java-spiffe-helper provisions `keystore.p12` with the key alias set to `user` (required by the PostgreSQL JDBC driver's `PKCS12KeyManager`).
 
 ## PostgreSQL mTLS Enforcement
 
@@ -88,30 +83,6 @@ Wait for all services to start (takes ~30-60 seconds for SPIRE bootstrapping and
 
 - **HTTP:**  http://localhost:8080
 - **Admin:** `admin` / `admin`
-
-## Testing Connection Modes
-
-The `KC_DB_URL` in `docker-compose.yml` includes commented connection modes you can toggle to verify PostgreSQL's mTLS enforcement:
-
-```yaml
-# Plain connection — no SSL (rejected by hostnossl rule)
-# KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak"
-
-# TLS only — server cert verified, but no client cert (rejected by cert rule)
-# KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak?ssl=true&sslmode=verify-full&sslrootcert=/opt/spiffe-certs/bundle.pem"
-
-# mTLS via PEM (requires spiffe-helper PEM output + DER key conversion)
-# KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak?ssl=true&sslmode=verify-full&sslcert=/opt/spiffe-certs/svid.pem&sslkey=/opt/spiffe-certs/svid_key.pem&sslrootcert=/opt/spiffe-certs/bundle.pem&pemKeyAlgorithm=EC"
-
-# mTLS via PKCS12 keystore (provisioned by java-spiffe-helper) and PEM trust bundle (provisioned by spiffe-helper)
-KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak?ssl=true&sslmode=verify-full&sslkey=/opt/spiffe-certs/keystore.p12&sslpassword=changeit&sslrootcert=/opt/spiffe-certs/bundle.pem"
-```
-
-Uncomment the desired mode and restart Keycloak to test:
-
-```bash
-docker compose up -d --force-recreate keycloak
-```
 
 ## Verify mTLS
 

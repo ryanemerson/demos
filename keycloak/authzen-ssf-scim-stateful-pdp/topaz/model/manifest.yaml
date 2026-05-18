@@ -1,0 +1,17 @@
+# Topaz directory model
+model:
+  version: 3
+
+types:
+  identity:
+    relations:
+      identifier: identity
+  scim-user: {}
+  group:
+    relations:
+      member: identity
+  document:
+    relations:
+      reader: group
+    permissions:
+      can_read: reader->member

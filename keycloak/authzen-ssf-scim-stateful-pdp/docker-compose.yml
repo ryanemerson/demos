@@ -1,0 +1,100 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:nightly
+    command:
+      - start-dev
+      - --import-realm
+    ports:
+      - "8080:8080"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+      KC_FEATURES: ssf
+      KC_SPI_SSF_TRANSMITTER_DEFAULT_ALLOW_INSECURE_PUSH_TARGETS: "true"
+    volumes:
+      - ./keycloak-scim-event-provider/target/keycloak-scim-event-provider.jar:/opt/keycloak/providers/keycloak-scim-event-provider.jar
+      - ./keycloak/demo-realm.json:/opt/keycloak/data/import/demo-realm.json
+    networks:
+      - poc-network
+    depends_on:
+      ssf-middleware:
+        condition: service_started
+
+  topaz:
+    image: ghcr.io/aserto-dev/topaz:latest
+    command:
+      - run
+      - --config-file
+      - /config/config.yaml
+    ports:
+      - "8383:8383"
+      - "9393:9393"
+    environment:
+      TOPAZ_CERTS_DIR: /certs
+      TOPAZ_DB_DIR: /db
+    volumes:
+      - ./topaz/config.yaml:/config/config.yaml
+      - ./topaz/policy:/policies
+      - topaz-db:/db
+      - topaz-certs:/certs
+    networks:
+      - poc-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9393/api/v3/directory/manifest 2>/dev/null || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  topaz-init:
+    image: ghcr.io/aserto-dev/topaz:latest
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        /app/topaz ds set manifest /manifest/manifest.yaml -N -i -H topaz:9292 &&
+        /app/topaz ds import -d /data -N -i -H topaz:9292
+    volumes:
+      - ./topaz/model:/manifest:ro
+      - ./topaz/data:/data:ro
+    networks:
+      - poc-network
+    depends_on:
+      topaz:
+        condition: service_healthy
+
+  scim:
+    image: ghcr.io/aserto-dev/scim:latest
+    command:
+      - run
+      - -c
+      - /config/config.yaml
+    volumes:
+      - ./scim/config.yaml:/config/config.yaml
+    networks:
+      - poc-network
+    depends_on:
+      topaz-init:
+        condition: service_completed_successfully
+
+  ssf-middleware:
+    build:
+      context: ./ssf-scim-middleware
+      dockerfile: src/main/docker/Dockerfile.jvm
+    ports:
+      - "8090:8090"
+    environment:
+      SCIM_ENDPOINT: http://scim:8085
+    networks:
+      - poc-network
+    depends_on:
+      scim:
+        condition: service_started
+
+volumes:
+  topaz-db:
+  topaz-certs:
+
+networks:
+  poc-network:
+    driver: bridge

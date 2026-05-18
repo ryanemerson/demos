@@ -1,0 +1,159 @@
+---
+version: 2
+
+logging:
+  prod: false
+  log_level: info
+
+directory:
+  db_path: /db/directory.db
+  request_timeout: 5s
+
+api:
+  health:
+    listen_address: "0.0.0.0:9494"
+  metrics:
+    listen_address: "0.0.0.0:9696"
+  services:
+    model:
+      grpc:
+        listen_address: "0.0.0.0:9292"
+        fqdn: "localhost"
+        certs:
+          tls_key_path: "${TOPAZ_CERTS_DIR}/grpc.key"
+          tls_cert_path: "${TOPAZ_CERTS_DIR}/grpc.crt"
+          tls_ca_cert_path: "${TOPAZ_CERTS_DIR}/grpc-ca.crt"
+      gateway:
+        listen_address: "0.0.0.0:9393"
+        fqdn: "localhost"
+        http: true
+        read_timeout: 2s
+        read_header_timeout: 2s
+        write_timeout: 2s
+        idle_timeout: 30s
+        allowed_origins:
+          - "*"
+
+    reader:
+      needs:
+        - model
+      grpc:
+        listen_address: "0.0.0.0:9292"
+        fqdn: "localhost"
+        certs:
+          tls_key_path: "${TOPAZ_CERTS_DIR}/grpc.key"
+          tls_cert_path: "${TOPAZ_CERTS_DIR}/grpc.crt"
+          tls_ca_cert_path: "${TOPAZ_CERTS_DIR}/grpc-ca.crt"
+      gateway:
+        listen_address: "0.0.0.0:9393"
+        fqdn: "localhost"
+        http: true
+        read_timeout: 2s
+        read_header_timeout: 2s
+        write_timeout: 2s
+        idle_timeout: 30s
+        allowed_origins:
+          - "*"
+
+    writer:
+      needs:
+        - model
+      grpc:
+        listen_address: "0.0.0.0:9292"
+        fqdn: "localhost"
+        certs:
+          tls_key_path: "${TOPAZ_CERTS_DIR}/grpc.key"
+          tls_cert_path: "${TOPAZ_CERTS_DIR}/grpc.crt"
+          tls_ca_cert_path: "${TOPAZ_CERTS_DIR}/grpc-ca.crt"
+      gateway:
+        listen_address: "0.0.0.0:9393"
+        fqdn: "localhost"
+        http: true
+        read_timeout: 2s
+        read_header_timeout: 2s
+        write_timeout: 2s
+        idle_timeout: 30s
+        allowed_origins:
+          - "*"
+
+    exporter:
+      needs:
+        - reader
+      grpc:
+        listen_address: "0.0.0.0:9292"
+        fqdn: "localhost"
+        certs:
+          tls_key_path: "${TOPAZ_CERTS_DIR}/grpc.key"
+          tls_cert_path: "${TOPAZ_CERTS_DIR}/grpc.crt"
+          tls_ca_cert_path: "${TOPAZ_CERTS_DIR}/grpc-ca.crt"
+      gateway:
+        listen_address: "0.0.0.0:9393"
+        fqdn: "localhost"
+        http: true
+        read_timeout: 2s
+        read_header_timeout: 2s
+        write_timeout: 2s
+        idle_timeout: 30s
+        allowed_origins:
+          - "*"
+
+    importer:
+      needs:
+        - model
+      grpc:
+        listen_address: "0.0.0.0:9292"
+        fqdn: "localhost"
+        certs:
+          tls_key_path: "${TOPAZ_CERTS_DIR}/grpc.key"
+          tls_cert_path: "${TOPAZ_CERTS_DIR}/grpc.crt"
+          tls_ca_cert_path: "${TOPAZ_CERTS_DIR}/grpc-ca.crt"
+      gateway:
+        listen_address: "0.0.0.0:9393"
+        fqdn: "localhost"
+        http: true
+        read_timeout: 2s
+        read_header_timeout: 2s
+        write_timeout: 2s
+        idle_timeout: 30s
+        allowed_origins:
+          - "*"
+
+    authorizer:
+      needs:
+        - reader
+      grpc:
+        listen_address: "0.0.0.0:8282"
+        fqdn: "localhost"
+        certs:
+          tls_key_path: "${TOPAZ_CERTS_DIR}/grpc.key"
+          tls_cert_path: "${TOPAZ_CERTS_DIR}/grpc.crt"
+          tls_ca_cert_path: "${TOPAZ_CERTS_DIR}/grpc-ca.crt"
+      gateway:
+        listen_address: "0.0.0.0:8383"
+        fqdn: "localhost"
+        http: true
+        read_timeout: 2s
+        read_header_timeout: 2s
+        write_timeout: 2s
+        idle_timeout: 30s
+        allowed_origins:
+          - "*"
+
+jwt:
+  acceptable_time_skew_seconds: 5
+
+auth:
+  api_keys:
+    enabled: false
+  options:
+    default:
+      enable_anonymous: true
+      enable_api_key: false
+
+opa:
+  instance_id: "-"
+  graceful_shutdown_period_seconds: 2
+  local_bundles:
+    paths:
+      - /policies
+    skip_verification: true

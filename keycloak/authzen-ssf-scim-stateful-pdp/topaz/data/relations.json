@@ -1,0 +1,3 @@
+{"relations": [
+  {"object_type": "document", "object_id": "doc-1", "relation": "reader", "subject_type": "group", "subject_id": "readers"}
+]}

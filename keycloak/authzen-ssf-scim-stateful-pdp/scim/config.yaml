@@ -1,0 +1,27 @@
+---
+logging:
+  prod: false
+  log_level: info
+
+server:
+  listen_address: ":8085"
+  auth:
+    basic:
+      enabled: false
+    bearer:
+      enabled: false
+
+directory:
+  address: "topaz:9292"
+  insecure: true
+
+scim:
+  user:
+    object_type: identity
+    identity_object_type: identity
+    identity_relation: identity#identifier
+    source_object_type: scim-user
+  group:
+    object_type: group
+    source_object_type: group
+    group_member_relation: member

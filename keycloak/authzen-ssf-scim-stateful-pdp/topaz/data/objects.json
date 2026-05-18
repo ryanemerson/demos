@@ -1,0 +1,4 @@
+{"objects": [
+  {"type": "document", "id": "doc-1", "display_name": "Sample Document"},
+  {"type": "group", "id": "readers", "display_name": "Readers Group"}
+]}

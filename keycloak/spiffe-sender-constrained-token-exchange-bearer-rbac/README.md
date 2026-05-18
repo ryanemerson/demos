@@ -1,25 +1,27 @@
-# Keycloak Microservice Authorization Demo
+# SPIFFE X.509 Client Auth — Sender-Constrained Token Exchange with RBAC
 
 Demonstrates zero-trust microservice authorization using SPIFFE/SPIRE for workload identity, mTLS for transport security, RFC 8705 sender-constrained tokens for proof-of-possession, and OAuth2 token exchange with role-based access control.
 
+**This variant uses X.509 certificate authentication (`client-x509`).** Services authenticate to Keycloak by presenting their SPIFFE X.509-SVID certificates directly during the mTLS handshake — Keycloak extracts the client identity from the TLS layer. This is the simpler approach: no additional SPIRE infrastructure is needed beyond the X.509-SVIDs that already secure transport.
+
+> **See also:** [spiffe-federation-sender-constrained-token-exchange-bearer-rbac](../spiffe-federation-sender-constrained-token-exchange-bearer-rbac/) — an alternative variant that replaces X.509 client auth with SPIFFE JWT-SVID client assertions, validated by Keycloak's federated SPIFFE identity provider. That approach adds a SPIRE OIDC Discovery Provider and uses application-layer JWT assertions instead of relying on TLS-layer certificate extraction.
+
 ## Architecture
 
-```
-                        TLS                  mTLS                 mTLS
-Browser ──────────> Frontend (8081) ──────> Microservice 1 (8082) ──────> Microservice 2 (8083)
-                        │                       │                            │
-                        │      mTLS             │        mTLS                │    mTLS
-                        └───────────> Keycloak (8443) <──────────────────────┘
-                                          │
-                                    SPIFFE Trust
-                                          │
-                              ┌───────────┴───────────┐
-                          SPIRE Server            SPIRE Agent
-                                                      │
-                                              ┌───────┼───────┐───────┐
-                                          spiffe-   spiffe-  spiffe-  spiffe-
-                                          helper    helper   helper   helper
-                                         (keycloak)(frontend)(ms1)   (ms2)
+```mermaid
+graph TB
+    Browser -->|TLS| Frontend["Frontend (8081)"]
+    Frontend -->|mTLS| MS1["Microservice 1 (8082)"]
+    MS1 -->|mTLS| MS2["Microservice 2 (8083)"]
+    Frontend -->|"mTLS + X.509 auth"| KC["Keycloak (8443)"]
+    MS1 -->|"mTLS + X.509 auth"| KC
+    MS2 -->|mTLS| KC
+    KC -.-|SPIFFE Trust| Server["SPIRE Server"]
+    Server --- Agent["SPIRE Agent"]
+    Agent --- H1["spiffe-helper<br/>(keycloak)"]
+    Agent --- H2["spiffe-helper<br/>(frontend)"]
+    Agent --- H3["spiffe-helper<br/>(ms1)"]
+    Agent --- H4["spiffe-helper<br/>(ms2)"]
 ```
 
 ### Components
@@ -46,49 +48,32 @@ Browser ──────────> Frontend (8081) ──────> Micr
 
 ## Token Flow
 
-```
-┌─────────┐     ┌──────────┐      ┌──────────────┐      ┌──────────┐      ┌──────────────┐
-│ Browser │     │ Frontend │      │ Microservice1 │      │ Keycloak │      │ Microservice2 │
-└────┬────┘     └────┬─────┘      └──────┬───────┘      └────┬─────┘      └──────┬───────┘
-     │               │                   │                   │                   │
-     │  Login (OIDC) │                   │                   │                   │
-     │──────────────>│                   │                   │                   │
-     │               │  Auth Code Flow (mTLS + X.509 auth)  │                   │
-     │               │──────────────────────────────────────>│                   │
-     │               │  Access Token (aud: ms1)              │                   │
-     │               │  + cnf bound to frontend cert         │                   │
-     │               │<──────────────────────────────────────│                   │
-     │   index.html  │                   │                   │                   │
-     │<──────────────│                   │                   │                   │
-     │               │                   │                   │                   │
-     │ Call Service  │                   │                   │                   │
-     │──────────────>│                   │                   │                   │
-     │               │  Bearer Token     │                   │                   │
-     │               │  (mTLS, cnf ✓)    │                   │                   │
-     │               │─────────────────>│                   │                   │
-     │               │                   │ Validate: service1 role              │
-     │               │                   │ Verify: cnf matches caller cert      │
-     │               │                   │                   │                   │
-     │               │                   │  Token Exchange   │                   │
-     │               │                   │  (mTLS + X.509)   │                   │
-     │               │                   │─────────────────>│                   │
-     │               │                   │  New Token        │                   │
-     │               │                   │  (aud: ms2)       │                   │
-     │               │                   │  + cnf bound to   │                   │
-     │               │                   │    ms1 cert       │                   │
-     │               │                   │<─────────────────│                   │
-     │               │                   │                   │                   │
-     │               │                   │  Bearer Token (mTLS, cnf ✓)          │
-     │               │                   │─────────────────────────────────────>│
-     │               │                   │                   │ Validate: service2 role
-     │               │                   │                   │                   │
-     │               │                   │  Decoded JWT (pretty JSON)           │
-     │               │                   │<─────────────────────────────────────│
-     │               │  Aggregated       │                   │                   │
-     │               │  Response         │                   │                   │
-     │               │<─────────────────│                   │                   │
-     │  Traffic Flow │                   │                   │                   │
-     │<──────────────│                   │                   │                   │
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant F as Frontend
+    participant M1 as Microservice 1
+    participant KC as Keycloak
+    participant M2 as Microservice 2
+
+    B->>F: Login (OIDC)
+    F->>KC: Auth Code Flow (mTLS + X.509 client auth)
+    KC-->>F: Access Token (aud: ms1) + cnf bound to frontend cert
+    F-->>B: index.html
+
+    B->>F: Call Service
+    F->>M1: Bearer Token (mTLS, cnf ✓)
+    Note over M1: Validate: service1 role<br/>Verify: cnf matches caller cert
+
+    M1->>KC: Token Exchange (mTLS + X.509 client auth)
+    KC-->>M1: New Token (aud: ms2) + cnf bound to ms1 cert
+
+    M1->>M2: Bearer Token (mTLS, cnf ✓)
+    Note over M2: Validate: service2 role
+    M2-->>M1: Decoded JWT (pretty JSON)
+
+    M1-->>F: Aggregated Response
+    F-->>B: Traffic Flow
 ```
 
 Each access token contains a `cnf.x5t#S256` claim — the SHA-256 thumbprint of the sender's X.509 certificate. This binds the token to the specific SPIFFE identity that requested it, so a stolen token cannot be used by a different workload. Microservice 1 verifies this binding by comparing the `cnf` thumbprint against the caller's mTLS client certificate.

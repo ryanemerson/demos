@@ -1,0 +1,47 @@
+{
+  "realm": "demo",
+  "enabled": true,
+  "registrationAllowed": false,
+  "eventsEnabled": true,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "eventsListeners": [
+    "jboss-logging",
+    "scim-ssf-event-listener"
+  ],
+  "attributes": {
+    "ssf.transmitterEnabled": "true"
+  },
+  "roles": {
+    "realm": [
+      {
+        "name": "reader",
+        "description": "Reader role for document access"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "ssf-middleware",
+      "enabled": true,
+      "secret": "ssf-middleware-secret",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "ssf.enabled": "true",
+        "ssf.validPushUrls": "http://ssf-middleware:8090/*",
+        "ssf.defaultSubjects": "ALL",
+        "ssf.streamId": "00000000-0000-0000-0000-000000000001",
+        "ssf.status": "enabled",
+        "ssf.stream.aud": "ssf-middleware",
+        "ssf.stream.delivery.method": "urn:ietf:rfc:8935",
+        "ssf.stream.delivery.endpointUrl": "http://ssf-middleware:8090/ssf/events",
+        "ssf.stream.eventsRequested": "ScimUserCreatedEvent,ScimGroupMemberAddedEvent",
+        "ssf.stream.eventsDelivered": "ScimUserCreatedEvent,ScimGroupMemberAddedEvent",
+        "ssf.stream.defaultSubjects": "ALL"
+      }
+    }
+  ]
+}

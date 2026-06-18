@@ -18,14 +18,15 @@ A demo application showcasing remote MCP (Model Context Protocol) client-server 
          |  CLI        |    |  MCP Server  |
          |  ChatBot    |--->|  (Quarkus)   |
          |  (Quarkus)  | MCP|  port: 8085  |
-         |  localhost   | SSE|              |
+         |  localhost  | SSE|              |
          +------+------+    +--------------+
                 |
                 v
-         +--------------+
-         |  Vertex AI    |
-         |  Claude LLM   |
-         +--------------+
+         +-------------------+
+         | OpenAI-compatible |
+         | LLM endpoint      |
+         | port: 8888        |
+         +-------------------+
 ```
 
 All Docker services use **host networking** so that Keycloak, the MCP server, and the chatbot share the same `localhost` — this eliminates OIDC issuer mismatches between internal and external hostnames.
@@ -34,7 +35,7 @@ All Docker services use **host networking** so that Keycloak, the MCP server, an
 
 - **Keycloak 26.6.1** — Authorization server with a `demo` realm, two clients, and two test users
 - **MCP Server** — Quarkus app exposing two MCP tools (`who-am-i` and `server-secret`), secured with OIDC bearer token validation
-- **CLI ChatBot** — Quarkus Picocli app that authenticates via browser-based OIDC login (Authorization Code + PKCE), then provides an interactive LLM chat with access to the secured MCP tools
+- **CLI ChatBot** — Quarkus Picocli app that authenticates via browser-based OIDC login (Authorization Code + PKCE), then provides an interactive LLM chat with access to the secured MCP tools. Connects to any OpenAI-compatible LLM endpoint (e.g., [RamaLama](https://github.com/containers/ramalama) serving a local model)
 
 ## Prerequisites
 
@@ -42,8 +43,7 @@ All Docker services use **host networking** so that Keycloak, the MCP server, an
 - Maven 3.9+
 - Docker and Docker Compose
 - Linux host (required for `network_mode: host`)
-- A Google Cloud project with the Vertex AI API enabled and access to Claude models
-- Google Cloud credentials configured via `gcloud auth application-default login`
+- An OpenAI-compatible LLM endpoint (e.g., [RamaLama](https://github.com/containers/ramalama) with a local model like `granite-3.3-8b-instruct`)
 
 ## Project Structure
 
@@ -66,7 +66,6 @@ All Docker services use **host networking** so that Keycloak, the MCP server, an
 │       ├── java/com/demo/chatbot/
 │       │   ├── ChatBotCommand.java      # Picocli @Command entry point
 │       │   ├── AiAssistant.java         # @RegisterAiService with @McpToolBox
-│       │   ├── ChatModelProducer.java   # Supplier<ChatModel> using Vertex AI Anthropic
 │       │   ├── OidcAuthService.java     # Auth Code + PKCE flow (login + logout)
 │       │   └── McpTokenProvider.java    # McpClientAuthProvider — injects Bearer token
 │       └── resources/application.properties
@@ -101,21 +100,17 @@ docker compose ps
 # keycloak should show "healthy"
 ```
 
-### 3. Authenticate with Google Cloud
+### 3. Start an OpenAI-compatible LLM endpoint
 
-If you haven't already, set up Application Default Credentials:
+Start a local LLM using [RamaLama](https://github.com/containers/ramalama) or any OpenAI-compatible server on port 8888:
 
 ```bash
-gcloud auth application-default login
+ramalama serve --port 8888 qwen3:4b
 ```
-
-This creates `~/.config/gcloud/application_default_credentials.json`, which the chatbot reads automatically.
 
 ### 4. Run the ChatBot
 
 ```bash
-export ANTHROPIC_VERTEX_PROJECT_ID=your-gcp-project-id
-
 java -jar chatbot/target/quarkus-app/quarkus-run.jar
 ```
 
@@ -136,16 +131,18 @@ Type `quit` or `exit` to end the session. The chatbot will automatically log you
 
 ## Configuration
 
-All chatbot settings are configurable via environment variables:
+All chatbot settings are configurable via environment variables or `application.properties`:
 
-| Variable                      | Default                             | Description                    |
-|-------------------------------|-------------------------------------|--------------------------------|
-| `ANTHROPIC_VERTEX_PROJECT_ID` | *(required)*                        | Google Cloud project ID        |
-| `CLOUD_ML_REGION`             | `us-east5`                          | Vertex AI region               |
-| `VERTEX_AI_MODEL`             | `claude-opus-4-6`            | Claude model name on Vertex AI |
-| `OIDC_AUTH_SERVER_URL`        | `http://localhost:8180/realms/demo` | Keycloak realm URL             |
-| `OIDC_CLIENT_ID`              | `chatbot-cli`                       | OIDC client ID                 |
-| `MCP_SERVER_URL`              | `http://localhost:8085/mcp/sse`     | MCP server SSE endpoint        |
+| Variable / Property                        | Default                             | Description                           |
+|--------------------------------------------|-------------------------------------|---------------------------------------|
+| `OIDC_AUTH_SERVER_URL`                     | `http://localhost:8180/realms/demo` | Keycloak realm URL                    |
+| `OIDC_CLIENT_ID`                           | `chatbot-cli`                       | OIDC client ID                        |
+| `MCP_SERVER_URL`                           | `http://localhost:8085/mcp/sse`     | MCP server SSE endpoint               |
+| `quarkus.langchain4j.openai.base-url`      | `http://localhost:8888/v1`          | OpenAI-compatible LLM endpoint        |
+| `quarkus.langchain4j.openai.api-key`       | `dummy-key`                         | API key (use `dummy-key` for local)   |
+| `quarkus.langchain4j.openai.max-tokens`    | `2048`                              | Maximum response tokens               |
+| `quarkus.langchain4j.openai.temperature`   | `0.7`                               | Sampling temperature                  |
+| `quarkus.langchain4j.openai.timeout`       | `60s`                               | Request timeout                       |
 
 ## Verification
 
@@ -222,13 +219,14 @@ docker compose down
 - **MCP connection refused**: Verify the MCP server is running with `docker compose ps` and port 8085 is accessible.
 - **401 on MCP calls**: Check that the access token hasn't expired (default: 5 minutes). Restart the chatbot to re-authenticate.
 - **403 on server-secret**: You're logged in as a user without the `admin` role. Log in as `alice` instead.
-- **Port conflicts**: Host networking requires ports 8180 (Keycloak), 9000 (Keycloak management), 8085 (MCP server), and 8080 (chatbot callback) to be free on the host.
+- **Port conflicts**: Host networking requires ports 8180 (Keycloak), 9000 (Keycloak management), 8085 (MCP server), 8080 (chatbot callback), and 8888 (LLM endpoint) to be free on the host.
+- **LLM not responding**: Verify your OpenAI-compatible endpoint is running on port 8888, or override `quarkus.langchain4j.openai.base-url`.
 
 ## Technology Stack
 
 - Java 21
 - Quarkus 3.34.6
-- LangChain4j 1.8.4 / Vertex AI Anthropic 1.12.2-beta22 (Claude via Google Vertex AI)
+- Quarkus LangChain4j 1.8.4 (OpenAI-compatible LLM integration)
 - Quarkus MCP Server 1.10.3 (SSE transport)
 - Keycloak 26.6.1
 - Docker Compose (host networking)

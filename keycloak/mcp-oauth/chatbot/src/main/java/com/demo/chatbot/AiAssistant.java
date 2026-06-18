@@ -6,7 +6,7 @@ import io.quarkiverse.langchain4j.RegisterAiService;
 import io.quarkiverse.langchain4j.mcp.runtime.McpToolBox;
 import jakarta.enterprise.context.ApplicationScoped;
 
-@RegisterAiService(chatLanguageModelSupplier = ChatModelProducer.class)
+@RegisterAiService
 @ApplicationScoped
 public interface AiAssistant {
 

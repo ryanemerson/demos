@@ -1,0 +1,141 @@
+{
+  "realm": "demo",
+  "enabled": true,
+  "displayName": "Demo Realm",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Administrator role with access to server secrets",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "user",
+        "description": "Regular user role",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "chatbot-cli",
+      "name": "CLI ChatBot",
+      "description": "Public client for the CLI chatbot application",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8080/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8080"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "mcp-server",
+      "name": "MCP Server",
+      "description": "Confidential client for MCP server bearer token validation",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "secret": "mcp-server-secret"
+    },
+    {
+      "clientId": "mcp-gateway",
+      "name": "ContextForge Gateway",
+      "description": "Confidential client for ContextForge gateway Keycloak SSO integration",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "secret": "mcp-gateway-secret",
+      "redirectUris": [
+        "http://localhost:4444/*"
+      ],
+      "webOrigins": [
+        "http://localhost:4444"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "alice@demo.com",
+      "firstName": "Alice",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin",
+        "user",
+        "default-roles-demo"
+      ]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "bob@demo.com",
+      "firstName": "Bob",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bob",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "user",
+        "default-roles-demo"
+      ]
+    }
+  ],
+  "defaultDefaultClientScopes": [
+    "web-origins",
+    "acr",
+    "roles",
+    "profile",
+    "email"
+  ],
+  "defaultOptionalClientScopes": [
+    "offline_access",
+    "address",
+    "phone",
+    "microprofile-jwt"
+  ]
+}

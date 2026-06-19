@@ -1,0 +1,88 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    container_name: keycloak
+    network_mode: host
+    command: ["start-dev", "--import-realm", "--health-enabled=true"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: 8180
+    volumes:
+      - ./keycloak/demo-realm.json:/opt/keycloak/data/import/demo-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  mcp-server:
+    build:
+      context: ./mcp-server
+    container_name: mcp-server
+    network_mode: host
+    environment:
+      QUARKUS_HTTP_PORT: "8085"
+      QUARKUS_OIDC_AUTH_SERVER_URL: "http://localhost:8180/realms/demo"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  contextforge-gateway:
+    image: ghcr.io/ibm/mcp-context-forge:v1.0.3
+    container_name: contextforge-gateway
+    network_mode: host
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "4444"
+      ENVIRONMENT: "development"
+      LOG_LEVEL: "INFO"
+      TRANSPORT_TYPE: "all"
+      AUTH_REQUIRED: "true"
+      MCP_REQUIRE_AUTH: "false"
+      API_ALLOW_BASIC_AUTH: "true"
+      BASIC_AUTH_USER: "admin"
+      BASIC_AUTH_PASSWORD: "admin"
+      JWT_SECRET_KEY: "demo-jwt-secret-key-that-is-at-least-32-bytes-long"
+      JWT_ALGORITHM: "HS256"
+      AUTH_ENCRYPTION_SECRET: "demo-encryption-secret-at-least-32-bytes"
+      AUTH_HEADER_NAME: "X-MCP-Gateway-Auth"
+      CSRF_ENABLED: "false"
+      SSRF_ALLOW_LOCALHOST: "true"
+      ENABLE_HEADER_PASSTHROUGH: "true"
+      GATEWAY_TOOL_NAME_SEPARATOR: "_"
+      MCPGATEWAY_UI_ENABLED: "true"
+      MCPGATEWAY_ADMIN_API_ENABLED: "true"
+      SSO_ENABLED: "true"
+      SSO_KEYCLOAK_ENABLED: "true"
+      SSO_KEYCLOAK_BASE_URL: "http://localhost:8180"
+      SSO_KEYCLOAK_PUBLIC_BASE_URL: "http://localhost:8180"
+      SSO_KEYCLOAK_REALM: "demo"
+      SSO_KEYCLOAK_CLIENT_ID: "mcp-gateway"
+      SSO_KEYCLOAK_CLIENT_SECRET: "mcp-gateway-secret"
+      SSO_AUTO_CREATE_USERS: "true"
+      PLATFORM_ADMIN_EMAIL: "admin@example.com"
+      PLATFORM_ADMIN_PASSWORD: "admin"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4444/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  gateway-init:
+    image: alpine:3.20
+    container_name: gateway-init
+    network_mode: host
+    entrypoint: ["/bin/sh", "/scripts/register-mcp-server.sh"]
+    volumes:
+      - ./scripts/register-mcp-server.sh:/scripts/register-mcp-server.sh:ro
+    depends_on:
+      contextforge-gateway:
+        condition: service_healthy
+      mcp-server:
+        condition: service_started

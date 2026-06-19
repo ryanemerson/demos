@@ -19,11 +19,6 @@
             <artifactId>quarkus-picocli</artifactId>
         </dependency>
         <dependency>
-            <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-vertex-ai-anthropic</artifactId>
-            <version>${langchain4j-vertex-ai-anthropic.version}</version>
-        </dependency>
-        <dependency>
             <groupId>io.quarkiverse.langchain4j</groupId>
             <artifactId>quarkus-langchain4j-mcp</artifactId>
             <version>${quarkus-langchain4j.version}</version>
@@ -35,6 +30,11 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-vertx</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkiverse.langchain4j</groupId>
+            <artifactId>quarkus-langchain4j-openai</artifactId>
+            <version>${quarkus-langchain4j-openai.version}</version>
         </dependency>
     </dependencies>
 

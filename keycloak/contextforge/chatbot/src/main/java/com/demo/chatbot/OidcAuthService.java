@@ -40,6 +40,15 @@ public class OidcAuthService {
         return accessToken;
     }
 
+    public String getUserEmail() {
+        if (accessToken == null) {
+            throw new IllegalStateException("No access token available");
+        }
+        String[] parts = accessToken.split("\\.");
+        String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
+        return new JsonObject(payload).getString("email");
+    }
+
     public void logout() {
         if (idToken == null) {
             return;

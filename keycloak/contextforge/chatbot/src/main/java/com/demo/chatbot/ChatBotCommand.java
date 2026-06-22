@@ -23,6 +23,9 @@ public class ChatBotCommand implements Callable<Integer> {
             System.out.println("Initiating OIDC login...\n");
             oidcAuthService.login();
 
+            String email = oidcAuthService.getUserEmail();
+            System.out.println("Logged in as: " + email);
+
             System.out.println("\nYou can now chat with the AI assistant.");
             System.out.println("The assistant has access to MCP tools on the secured server.");
             System.out.println("Type 'quit' or 'exit' to end the session.\n");

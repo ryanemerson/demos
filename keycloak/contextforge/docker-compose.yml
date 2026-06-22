@@ -3,15 +3,18 @@ services:
     image: quay.io/keycloak/keycloak:26.6.1
     container_name: keycloak
     network_mode: host
-    command: ["start-dev", "--import-realm", "--health-enabled=true"]
+    command: ["start-dev", "--import-realm", "--health-enabled=true", "--https-port=8443", "--https-certificate-file=/opt/keycloak/certs/server.crt", "--https-certificate-key-file=/opt/keycloak/certs/server.key"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_HTTP_PORT: 8180
+      KC_HOSTNAME: "https://localhost:8443"
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "false"
     volumes:
       - ./keycloak/demo-realm.json:/opt/keycloak/data/import/demo-realm.json:ro
+      - ./certs:/opt/keycloak/certs:ro
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8180 && echo -e 'GET /realms/master HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
       interval: 10s
       timeout: 5s
       retries: 15
@@ -24,7 +27,7 @@ services:
     network_mode: host
     environment:
       QUARKUS_HTTP_PORT: "8085"
-      QUARKUS_OIDC_AUTH_SERVER_URL: "http://localhost:8180/realms/demo"
+      QUARKUS_OIDC_AUTH_SERVER_URL: "https://localhost:8443/realms/demo"
     depends_on:
       keycloak:
         condition: service_healthy
@@ -33,31 +36,40 @@ services:
     image: ghcr.io/ibm/mcp-context-forge:v1.0.3
     container_name: contextforge-gateway
     network_mode: host
+    volumes:
+      - ./certs/ca-bundle.pem:/etc/ssl/certs/ca-bundle.pem:ro
     environment:
+      SSL_CERT_FILE: "/etc/ssl/certs/ca-bundle.pem"
       HOST: "0.0.0.0"
       PORT: "4444"
       ENVIRONMENT: "development"
-      LOG_LEVEL: "INFO"
+      LOG_LEVEL: "DEBUG"
       TRANSPORT_TYPE: "all"
       AUTH_REQUIRED: "true"
-      MCP_REQUIRE_AUTH: "false"
+      MCP_REQUIRE_AUTH: "true"
       API_ALLOW_BASIC_AUTH: "true"
       BASIC_AUTH_USER: "admin"
       BASIC_AUTH_PASSWORD: "admin"
       JWT_SECRET_KEY: "demo-jwt-secret-key-that-is-at-least-32-bytes-long"
       JWT_ALGORITHM: "HS256"
       AUTH_ENCRYPTION_SECRET: "demo-encryption-secret-at-least-32-bytes"
-      AUTH_HEADER_NAME: "X-MCP-Gateway-Auth"
       CSRF_ENABLED: "false"
       SSRF_ALLOW_LOCALHOST: "true"
+      SKIP_SSL_VERIFY: "true"
+      REQUIRE_USER_IN_DB: "false"
       ENABLE_HEADER_PASSTHROUGH: "true"
+      DEFAULT_PASSTHROUGH_HEADERS: '["X-Forwarded-User-Email","X-Forwarded-User-Id","X-Forwarded-User-Admin","X-Forwarded-User-Roles"]'
+      PASSTHROUGH_HEADERS_SOURCE: "env"
+      IDENTITY_PROPAGATION_ENABLED: "true"
+      IDENTITY_PROPAGATION_MODE: "headers"
       GATEWAY_TOOL_NAME_SEPARATOR: "_"
       MCPGATEWAY_UI_ENABLED: "true"
       MCPGATEWAY_ADMIN_API_ENABLED: "true"
+      SSO_PRESERVE_ADMIN_AUTH: "false"
       SSO_ENABLED: "true"
       SSO_KEYCLOAK_ENABLED: "true"
-      SSO_KEYCLOAK_BASE_URL: "http://localhost:8180"
-      SSO_KEYCLOAK_PUBLIC_BASE_URL: "http://localhost:8180"
+      SSO_KEYCLOAK_BASE_URL: "https://localhost:8443"
+      SSO_KEYCLOAK_PUBLIC_BASE_URL: "https://localhost:8443"
       SSO_KEYCLOAK_REALM: "demo"
       SSO_KEYCLOAK_CLIENT_ID: "mcp-gateway"
       SSO_KEYCLOAK_CLIENT_SECRET: "mcp-gateway-secret"
@@ -81,6 +93,7 @@ services:
     entrypoint: ["/bin/sh", "/scripts/register-mcp-server.sh"]
     volumes:
       - ./scripts/register-mcp-server.sh:/scripts/register-mcp-server.sh:ro
+      - ./data:/data
     depends_on:
       contextforge-gateway:
         condition: service_healthy

@@ -11,8 +11,8 @@ A demo application showcasing remote MCP (Model Context Protocol) client-server 
                          |  port: 8180     |
                          +--------+--------+
                                   |
-              OIDC Auth Code      |     Bearer Token
-              Flow (PKCE)         |     Validation
+              OIDC Device          |     Bearer Token
+              Auth Flow           |     Validation
                                   |
          +------------+    +------+-------+
          |  CLI        |    |  MCP Server  |
@@ -35,7 +35,7 @@ All Docker services use **host networking** so that Keycloak, the MCP server, an
 
 - **Keycloak 26.6.1** — Authorization server with a `demo` realm, two clients, and two test users
 - **MCP Server** — Quarkus app exposing two MCP tools (`who-am-i` and `server-secret`), secured with OIDC bearer token validation
-- **CLI ChatBot** — Quarkus Picocli app that authenticates via browser-based OIDC login (Authorization Code + PKCE), then provides an interactive LLM chat with access to the secured MCP tools. Connects to any OpenAI-compatible LLM endpoint (e.g., [RamaLama](https://github.com/containers/ramalama) serving a local model)
+- **CLI ChatBot** — Quarkus Picocli app that authenticates via the OAuth 2.0 Device Authorization flow (RFC 8628), then provides an interactive LLM chat with access to the secured MCP tools. Connects to any OpenAI-compatible LLM endpoint (e.g., [RamaLama](https://github.com/containers/ramalama) serving a local model)
 
 ## Prerequisites
 
@@ -66,7 +66,7 @@ All Docker services use **host networking** so that Keycloak, the MCP server, an
 │       ├── java/com/demo/chatbot/
 │       │   ├── ChatBotCommand.java      # Picocli @Command entry point
 │       │   ├── AiAssistant.java         # @RegisterAiService with @McpToolBox
-│       │   ├── OidcAuthService.java     # Auth Code + PKCE flow (login + logout)
+│       │   ├── OidcAuthService.java     # Device Authorization flow (login + logout)
 │       │   └── McpTokenProvider.java    # McpClientAuthProvider — injects Bearer token
 │       └── resources/application.properties
 └── README.md
@@ -116,7 +116,7 @@ java -jar chatbot/target/quarkus-app/quarkus-run.jar
 
 ### 5. Log In
 
-Your browser will open to the Keycloak login page. Log in as `alice` (password: `alice`) for full access, or `bob` (password: `bob`) for regular user access.
+The chatbot will display a verification URL and a user code. Your browser will open automatically — log in as `alice` (password: `alice`) for full access, or `bob` (password: `bob`) for regular user access, then enter the displayed code when prompted.
 
 ### 6. Chat
 
@@ -215,11 +215,11 @@ docker compose down
 ## Troubleshooting
 
 - **Browser doesn't open**: Copy the URL printed in the terminal and paste it into your browser manually.
-- **Token exchange fails**: Ensure Keycloak is healthy (`docker compose ps`) and port 8080 is free for the callback server.
+- **Token exchange fails**: Ensure Keycloak is healthy (`docker compose ps`).
 - **MCP connection refused**: Verify the MCP server is running with `docker compose ps` and port 8085 is accessible.
 - **401 on MCP calls**: Check that the access token hasn't expired (default: 5 minutes). Restart the chatbot to re-authenticate.
 - **403 on server-secret**: You're logged in as a user without the `admin` role. Log in as `alice` instead.
-- **Port conflicts**: Host networking requires ports 8180 (Keycloak), 9000 (Keycloak management), 8085 (MCP server), 8080 (chatbot callback), and 8888 (LLM endpoint) to be free on the host.
+- **Port conflicts**: Host networking requires ports 8180 (Keycloak), 9000 (Keycloak management), 8085 (MCP server), and 8888 (LLM endpoint) to be free on the host.
 - **LLM not responding**: Verify your OpenAI-compatible endpoint is running on port 8888, or override `quarkus.langchain4j.openai.base-url`.
 
 ## Technology Stack
